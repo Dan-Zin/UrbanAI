@@ -1,13 +1,42 @@
 import { create } from "zustand";
 import { seededRandom } from "./utils";
+import { SANDBOX_SIZE } from "./constants";
+import { BUILTIN_CATALOG, type CatalogItem, type GeneratedMesh } from "./catalog";
 import { fetchSurroundings, type Surroundings } from "@/services/osm";
 import type { SceneAnalysis } from "@/services/ai";
 
 export const TAGANROG_CENTER: [number, number] = [38.9265, 47.2123];
 
-export type ObjectKind = "tree" | "bench" | "lamp" | "fountain" | "block" | "ai";
+export type ObjectKind = "tree" | "bench" | "lamp" | "fountain" | "block" | "ai" | "catalog";
 export type BlockUse = "residential" | "commercial" | "mixed";
 export type ScenarioId = "A" | "B";
+export type MapStyleId = "schematic" | "satellite";
+export type TransformMode = "translate" | "rotate" | "scale";
+
+export interface PanelChrome {
+  pinned: boolean;
+  hidden: boolean;
+}
+
+export const DEFAULT_PANELS: Record<string, PanelChrome> = {
+  header: { pinned: true, hidden: false },
+  catalog: { pinned: true, hidden: false },
+  ai: { pinned: false, hidden: true },
+  metrics: { pinned: false, hidden: false },
+  time: { pinned: false, hidden: false },
+  zoning: { pinned: false, hidden: false },
+  inspector: { pinned: false, hidden: false },
+};
+
+export const PANEL_LABELS: Record<string, string> = {
+  header: "Шапка",
+  catalog: "Каталог",
+  ai: "AI-панели",
+  metrics: "Ёмкость",
+  time: "Время суток",
+  zoning: "Слои",
+  inspector: "Инспектор",
+};
 
 export interface PlacedObject {
   id: string;
@@ -15,9 +44,13 @@ export interface PlacedObject {
   label: string;
   price: number;
   position: [number, number, number];
+  rotation: [number, number, number];
+  scale: [number, number, number];
   /** Parametric development block fields (kind === "block") */
   floors?: number;
   use?: BlockUse;
+  catalogId?: string;
+  mesh?: GeneratedMesh;
 }
 
 export interface Building {
@@ -44,18 +77,25 @@ export interface ComplianceResult {
 }
 
 export const CATALOG: Record<
-  Exclude<ObjectKind, "ai">,
+  Exclude<ObjectKind, "ai" | "catalog">,
   { label: string; price: number }
 > = {
-  tree: { label: "Tree", price: 200 },
-  bench: { label: "Bench", price: 500 },
-  lamp: { label: "Street Lamp", price: 350 },
-  fountain: { label: "Fountain", price: 4200 },
-  block: { label: "Dev Block", price: 0 }, // priced from floors below
+  tree: { label: "Дерево", price: 200 },
+  bench: { label: "Скамейка", price: 500 },
+  lamp: { label: "Фонарь", price: 350 },
+  fountain: { label: "Фонтан", price: 4200 },
+  block: { label: "Квартал", price: 0 },
 };
 
 /** 6x8 m parametric block: $/m² of gross floor area. */
 export const BLOCK_PRICE_PER_FLOOR = 6 * 8 * 400;
+
+function panelOf(
+  state: Record<string, PanelChrome>,
+  id: string
+): PanelChrome {
+  return state[id] ?? DEFAULT_PANELS[id] ?? { pinned: false, hidden: false };
+}
 
 /** Generate deterministic "existing buildings" around a clicked coordinate. */
 function generateBuildings(lng: number, lat: number): Building[] {
@@ -64,7 +104,7 @@ function generateBuildings(lng: number, lat: number): Building[] {
   const buildings: Building[] = [];
   for (let i = 0; i < count; i++) {
     const angle = rand() * Math.PI * 2;
-    const dist = 6 + rand() * 6; // keep them just outside the 10x10 sandbox
+    const dist = SANDBOX_SIZE / 2 + 4 + rand() * 10;
     const w = 2 + rand() * 4;
     const d = 2 + rand() * 4;
     const h = 3 + rand() * 12;
@@ -105,12 +145,16 @@ interface UrbanState {
   scenario: ScenarioId;
   setScenario: (s: ScenarioId) => void;
   activeObjectId: string | null;
-  addObject: (kind: Exclude<ObjectKind, "ai">) => void;
-  addAIObject: (label: string, price: number) => void;
+  addObject: (kind: Exclude<ObjectKind, "ai" | "catalog">) => void;
+  addAIObject: (label: string, price: number, mesh?: GeneratedMesh) => void;
+  addFromCatalog: (catalogId: string) => void;
   removeObject: (id: string) => void;
   setActiveObject: (id: string | null) => void;
   moveObject: (id: string, position: [number, number, number]) => void;
   updateObject: (id: string, patch: Partial<PlacedObject>) => void;
+
+  catalog: CatalogItem[];
+  addCatalogItem: (item: CatalogItem) => void;
 
   // ArcGIS-Urban-style analysis state
   timeOfDay: number; // hours, 0..24
@@ -120,10 +164,31 @@ interface UrbanState {
   /** Real satellite orthophoto on the ground + real roofs. */
   showSatellite: boolean;
   toggleSatellite: () => void;
+  /** Run NN super-resolution on the stitched orthophoto before draping. */
+  enhanceSatellite: boolean;
+  toggleEnhanceSatellite: () => void;
+  satelliteStatus: "idle" | "loading" | "enhancing" | "ready" | "failed";
+  setSatelliteStatus: (s: UrbanState["satelliteStatus"]) => void;
+
+  mapHidden: boolean;
+  mapStyle: MapStyleId;
+  toggleMapHidden: () => void;
+  setMapHidden: (v: boolean) => void;
+  setMapStyle: (s: MapStyleId) => void;
+
+  uiHidden: boolean;
+  toggleUiHidden: () => void;
+  setUiHidden: (v: boolean) => void;
+  panelState: Record<string, PanelChrome>;
+  togglePanelPin: (id: string) => void;
+  togglePanelHidden: (id: string) => void;
+  setPanelHidden: (id: string, hidden: boolean) => void;
 
   // Transform gizmo <-> orbit controls coordination
   transforming: boolean;
   setTransforming: (v: boolean) => void;
+  transformMode: TransformMode;
+  setTransformMode: (m: TransformMode) => void;
 
   // AI pillar state
   sentiment: SentimentResult | null;
@@ -139,6 +204,10 @@ interface UrbanState {
 
 let objectCounter = 0;
 let osmRequestId = 0;
+
+function jitter(): number {
+  return (Math.random() - 0.5) * SANDBOX_SIZE * 0.55;
+}
 
 export const useStore = create<UrbanState>((set, get) => ({
   selected: null,
@@ -161,15 +230,13 @@ export const useStore = create<UrbanState>((set, get) => ({
       sentiment: null,
       compliance: {
         status: "idle",
-        message: "No objects placed yet",
+        message: "На площадке ещё нет объектов",
         layers: [],
       },
     });
-    // Pull real buildings/roads/trees from OpenStreetMap; keep the
-    // procedural blocks as a fallback if every Overpass mirror fails.
     fetchSurroundings(lng, lat)
       .then((s) => {
-        if (requestId !== osmRequestId) return; // a newer click won
+        if (requestId !== osmRequestId) return;
         if (s && s.buildings.length + s.roads.length > 0) {
           set({ surroundings: s, osmStatus: "ready" });
         } else {
@@ -203,7 +270,6 @@ export const useStore = create<UrbanState>((set, get) => ({
   addObject: (kind) => {
     const { label, price } = CATALOG[kind];
     const id = `obj-${++objectCounter}`;
-    const jitter = () => (Math.random() - 0.5) * 6;
     set((s) => {
       const obj: PlacedObject = {
         id,
@@ -211,12 +277,14 @@ export const useStore = create<UrbanState>((set, get) => ({
         label,
         price,
         position: [jitter(), 0, jitter()],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
       };
       if (kind === "block") {
         obj.floors = 5;
         obj.use = "residential";
         obj.price = BLOCK_PRICE_PER_FLOOR * 5;
-        obj.label = "Dev Block · 5 fl";
+        obj.label = "Квартал · 5 эт.";
         obj.position = [0, 0, 0];
       }
       const objects = [...s.objects, obj];
@@ -227,12 +295,51 @@ export const useStore = create<UrbanState>((set, get) => ({
       };
     });
   },
-  addAIObject: (label, price) => {
+  addAIObject: (label, price, mesh) => {
     const id = `obj-${++objectCounter}`;
     set((s) => {
       const objects: PlacedObject[] = [
         ...s.objects,
-        { id, kind: "ai" as const, label, price, position: [0, 0, 0] as [number, number, number] },
+        {
+          id,
+          kind: mesh ? "catalog" : "ai",
+          label,
+          price,
+          position: [jitter(), 0, jitter()],
+          rotation: [0, 0, 0],
+          scale: [1, 1, 1],
+          mesh,
+        },
+      ];
+      return {
+        objects,
+        scenarios: { ...s.scenarios, [s.scenario]: objects },
+        activeObjectId: id,
+      };
+    });
+  },
+  addFromCatalog: (catalogId) => {
+    const item = get().catalog.find((c) => c.id === catalogId);
+    if (!item) return;
+    if (item.builtinKind) {
+      get().addObject(item.builtinKind);
+      return;
+    }
+    const id = `obj-${++objectCounter}`;
+    set((s) => {
+      const objects: PlacedObject[] = [
+        ...s.objects,
+        {
+          id,
+          kind: "catalog",
+          label: item.label,
+          price: item.price,
+          position: [jitter(), 0, jitter()],
+          rotation: [0, 0, 0],
+          scale: [1, 1, 1],
+          catalogId: item.id,
+          mesh: item.mesh,
+        },
       ];
       return {
         objects,
@@ -263,12 +370,16 @@ export const useStore = create<UrbanState>((set, get) => ({
         const next = { ...o, ...patch };
         if (next.kind === "block") {
           next.price = BLOCK_PRICE_PER_FLOOR * (next.floors ?? 1);
-          next.label = `Dev Block · ${next.floors} fl`;
+          next.label = `Квартал · ${next.floors} эт.`;
         }
         return next;
       });
       return { objects, scenarios: { ...s.scenarios, [s.scenario]: objects } };
     }),
+
+  catalog: BUILTIN_CATALOG,
+  addCatalogItem: (item) =>
+    set((s) => ({ catalog: [item, ...s.catalog] })),
 
   timeOfDay: 17.5,
   setTimeOfDay: (timeOfDay) => set({ timeOfDay }),
@@ -276,16 +387,49 @@ export const useStore = create<UrbanState>((set, get) => ({
   toggleZoning: () => set((s) => ({ showZoning: !s.showZoning })),
   showSatellite: true,
   toggleSatellite: () => set((s) => ({ showSatellite: !s.showSatellite })),
+  enhanceSatellite: true,
+  toggleEnhanceSatellite: () =>
+    set((s) => ({ enhanceSatellite: !s.enhanceSatellite })),
+  satelliteStatus: "idle",
+  setSatelliteStatus: (satelliteStatus) => set({ satelliteStatus }),
+
+  mapHidden: false,
+  mapStyle: "schematic",
+  toggleMapHidden: () => set((s) => ({ mapHidden: !s.mapHidden })),
+  setMapHidden: (mapHidden) => set({ mapHidden }),
+  setMapStyle: (mapStyle) => set({ mapStyle }),
+
+  uiHidden: false,
+  toggleUiHidden: () => set((s) => ({ uiHidden: !s.uiHidden })),
+  setUiHidden: (uiHidden) => set({ uiHidden }),
+  panelState: { ...DEFAULT_PANELS },
+  togglePanelPin: (id) =>
+    set((s) => {
+      const cur = panelOf(s.panelState, id);
+      return { panelState: { ...s.panelState, [id]: { ...cur, pinned: !cur.pinned } } };
+    }),
+  togglePanelHidden: (id) =>
+    set((s) => {
+      const cur = panelOf(s.panelState, id);
+      return { panelState: { ...s.panelState, [id]: { ...cur, hidden: !cur.hidden } } };
+    }),
+  setPanelHidden: (id, hidden) =>
+    set((s) => {
+      const cur = panelOf(s.panelState, id);
+      return { panelState: { ...s.panelState, [id]: { ...cur, hidden } } };
+    }),
 
   transforming: false,
   setTransforming: (v) => set({ transforming: v }),
+  transformMode: "translate",
+  setTransformMode: (transformMode) => set({ transformMode }),
 
   sentiment: null,
   sentimentLoading: false,
   setSentiment: (sentiment) => set({ sentiment }),
   setSentimentLoading: (sentimentLoading) => set({ sentimentLoading }),
 
-  compliance: { status: "idle", message: "Select a site to begin", layers: [] },
+  compliance: { status: "idle", message: "Выберите точку на карте", layers: [] },
   setCompliance: (compliance) => set({ compliance }),
 
   totalCost: () => get().objects.reduce((sum, o) => sum + o.price, 0),

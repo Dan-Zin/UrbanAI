@@ -18,7 +18,7 @@ export default function CostEstimator() {
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2">
           <Coins className="h-4 w-4 text-emerald-400" />
-          Live Cost Estimate
+          Смета
         </CardTitle>
         <motion.span
           key={total}
@@ -32,7 +32,7 @@ export default function CostEstimator() {
       <CardContent>
         {objects.length === 0 ? (
           <p className="text-xs text-muted-foreground">
-            Add objects to the sandbox — the estimate updates in real time.
+            Добавьте объекты с каталога — смета обновится сразу.
           </p>
         ) : (
           <ul className="max-h-36 space-y-1 overflow-y-auto scrollbar-thin">

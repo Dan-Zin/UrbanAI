@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, ImageIcon, LoaderCircle } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { SANDBOX_SIZE } from "@/lib/constants";
 import { generateVisualization, MOCK_MODE } from "@/services/ai";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,7 @@ function useScenePrompt(): string {
     Object.entries(counts)
       .map(([label, n]) => `${n}x ${label.toLowerCase()}`)
       .join(", ") || "an empty renovated plaza";
-  return `10x10m public space in Taganrog at ${selected.lat.toFixed(4)}N ${selected.lng.toFixed(4)}E with ${items}`;
+  return `${SANDBOX_SIZE}x${SANDBOX_SIZE}m public space in Taganrog at ${selected.lat.toFixed(4)}N ${selected.lng.toFixed(4)}E with ${items}`;
 }
 
 export default function VisualizePanel() {
@@ -38,7 +39,7 @@ export default function VisualizePanel() {
     try {
       setImage(await generateVisualization(prompt));
     } catch {
-      setError("Generation failed — check your Fal.ai key or try again.");
+      setError("Не удалось сгенерировать кадр. Проверьте ключ или повторите.");
     } finally {
       setLoading(false);
     }
@@ -49,9 +50,9 @@ export default function VisualizePanel() {
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2">
           <ImageIcon className="h-4 w-4 text-emerald-400" />
-          Generative Design
+          Генеративный вид
         </CardTitle>
-        <Badge variant="secondary">{MOCK_MODE.image ? "Mock" : "Fal.ai"}</Badge>
+        <Badge variant="secondary">{MOCK_MODE.image ? "Макет" : "Fal.ai"}</Badge>
       </CardHeader>
       <CardContent className="space-y-3">
         {prompt && (
@@ -68,12 +69,12 @@ export default function VisualizePanel() {
           {loading ? (
             <>
               <LoaderCircle className="animate-spin" />
-              Rendering vision…
+              Рисую кадр…
             </>
           ) : (
             <>
               <Sparkles />
-              Visualize
+              Визуализировать
             </>
           )}
         </Button>

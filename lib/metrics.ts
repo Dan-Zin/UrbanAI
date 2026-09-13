@@ -2,6 +2,7 @@
 
 import type { PlacedObject } from "./store";
 import type { Surroundings } from "@/services/osm";
+import { SANDBOX_SIZE } from "./constants";
 
 export const BLOCK_FOOT_W = 6;
 export const BLOCK_FOOT_D = 8;
@@ -28,7 +29,7 @@ export interface ScenarioMetrics {
   residents: number;
   jobs: number;
   investment: number;
-  /** Proposed floor area over the 10x10 m sandbox site. */
+  /** Proposed floor area over the planning sandbox site. */
   far: number;
 }
 
@@ -63,7 +64,7 @@ export function computeScenarioMetrics(objects: PlacedObject[]): ScenarioMetrics
     residents: Math.round(gfaRes / M2_PER_RESIDENT),
     jobs: Math.round(gfaJobs / M2_PER_JOB),
     investment,
-    far: proposedGFA / 100, // sandbox site is 10x10 m
+    far: proposedGFA / (SANDBOX_SIZE * SANDBOX_SIZE),
   };
 }
 

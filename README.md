@@ -1,7 +1,8 @@
 # Urban AI — Collaborative City Planning (Taganrog MVP)
 
-Click a point on the 2D map of Taganrog and a 10×10 m **3D Planning Sandbox** opens
-for that spot, wired to four AI pillars.
+Click a point on the 2D map of Taganrog and a 40×40 m **3D Planning Sandbox** opens
+for that spot, wired to four AI pillars. All OSM buildings in the loaded radius
+are extruded into the scene.
 
 ## Quick start
 
@@ -23,6 +24,7 @@ Copy `.env.local.example` to `.env.local` and add any of:
 | `NEXT_PUBLIC_OPENROUTER_API_KEY` | OpenRouter | Community Sentiment NLP |
 | `NEXT_PUBLIC_FAL_API_KEY` | Fal.ai (FLUX) | "Visualize" image renders |
 | `NEXT_PUBLIC_TRIPO_API_KEY` | Tripo AI | Text-to-3D assets (placeholder) |
+| `XAI_API_KEY` | xAI / SpaceXAI | Catalog objects from text or photo (server-side) |
 
 ## Architecture
 
@@ -31,7 +33,7 @@ Copy `.env.local.example` to `.env.local` and add any of:
 - `components/MapComponent.tsx` — basemap with graceful degradation
   (Mapbox GL if token → free Leaflet + CARTO dark raster tiles → offline canvas),
   emits the Sync event on click.
-- `components/Scene3D.tsx` — React Three Fiber viewport: 10×10 grid, real
+- `components/Scene3D.tsx` — React Three Fiber viewport: 40×40 m grid, real
   OSM surroundings, placeable objects with TransformControls,
   Environment / ContactShadows / OrbitControls.
 - `services/osm.ts` + `components/scene/Surroundings.tsx` — real city context:

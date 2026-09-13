@@ -8,30 +8,30 @@ import { sunAt } from "@/lib/sun";
 import { ZONE_COLORS } from "@/components/scene/zoneColors";
 import {
   applyGroundMapping,
+  enhanceGroundImagery,
   loadGroundImagery,
   type GroundImagery,
 } from "@/lib/satellite";
-import type {
-  OsmArea,
-  OsmBuilding,
-  OsmRail,
-  OsmRoad,
-  OsmTree,
-  Surroundings,
+import {
+  normalizeOsmColor,
+  type OsmArea,
+  type OsmBuilding,
+  type OsmRail,
+  type OsmRoad,
+  type OsmTree,
+  type Surroundings,
 } from "@/services/osm";
 import type { FacadeSpec, StreetSpec } from "@/services/ai";
 
-/** Safe OSM colour parser — building:colour may be hex or a CSS name. */
+/** Safe OSM colour parser — hex, CSS names, or Russian words like «красный». */
 function parseOsmColor(c?: string): THREE.Color | null {
-  if (!c) return null;
-  const color = new THREE.Color();
-  color.setStyle(c.toLowerCase());
-  // setStyle leaves black + warns on unknown names; treat pure black output
-  // for input that wasn't literally black as a parse failure
-  if (color.getHex() === 0 && !/^(#0+|black)$/.test(c.toLowerCase())) {
+  const hex = normalizeOsmColor(c);
+  if (!hex) return null;
+  try {
+    return new THREE.Color(hex);
+  } catch {
     return null;
   }
-  return color;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1429,7 +1429,7 @@ function SatelliteGround({ imagery }: { imagery: GroundImagery }) {
       position={[0, 0.004, 0]}
       receiveShadow
     >
-      <meshStandardMaterial map={imagery.texture} roughness={0.96} />
+      <meshBasicMaterial map={imagery.texture} />
     </mesh>
   );
 }
@@ -1448,24 +1448,52 @@ export default function SurroundingsView({ data }: { data: Surroundings }) {
 
   // Real satellite orthophoto for ground + roofs
   const [imagery, setImagery] = useState<GroundImagery | null>(null);
+  const enhanceSatellite = useStore((s) => s.enhanceSatellite);
+  const setSatelliteStatus = useStore((s) => s.setSatelliteStatus);
   useEffect(() => {
     let stale = false;
     setImagery(null);
-    if (selected) {
-      loadGroundImagery(selected.lng, selected.lat).then((img) => {
-        if (!stale) setImagery(img);
-      });
+    if (!selected) {
+      setSatelliteStatus("idle");
+      return;
     }
+    setSatelliteStatus("loading");
+    (async () => {
+      const raw = await loadGroundImagery(selected.lng, selected.lat);
+      if (stale) return;
+      if (!raw) {
+        setSatelliteStatus("failed");
+        return;
+      }
+      setImagery(raw);
+      if (!enhanceSatellite) {
+        setSatelliteStatus("ready");
+        return;
+      }
+      setSatelliteStatus("enhancing");
+      try {
+        const better = await enhanceGroundImagery(raw);
+        if (!stale) {
+          raw.texture.dispose();
+          setImagery(better);
+          setSatelliteStatus("ready");
+        }
+      } catch {
+        if (!stale) setSatelliteStatus("ready");
+      }
+    })();
     return () => {
       stale = true;
     };
-  }, [selected]);
+  }, [selected, enhanceSatellite, setSatelliteStatus]);
 
   const satActive = showSatellite && imagery !== null;
 
   return (
     <group>
-      {satActive && imagery && <SatelliteGround imagery={imagery} />}
+      {satActive && imagery && (
+        <SatelliteGround key={imagery.texture.uuid} imagery={imagery} />
+      )}
       {/* painted ground cover only when the real photo is off/unavailable */}
       {!satActive &&
         data.areas

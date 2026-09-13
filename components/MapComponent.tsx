@@ -1,13 +1,26 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { MapPin, Satellite } from "lucide-react";
+import { EyeOff, Map as MapIcon, MapPin, Satellite } from "lucide-react";
 import { motion } from "framer-motion";
-import { useStore, TAGANROG_CENTER } from "@/lib/store";
+import { useStore, TAGANROG_CENTER, type MapStyleId } from "@/lib/store";
 import { Badge } from "@/components/ui/badge";
 import { seededRandom } from "@/lib/utils";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? "";
+
+const CARTO_DARK_TILES =
+  "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+const CARTO_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>';
+const SAT_TILES = "/api/sat-tile?z={z}&x={x}&y={y}";
+const SAT_ATTRIBUTION =
+  "Спутник: Esri / Sentinel-2 / Google";
+
+const MAPBOX_STYLES: Record<MapStyleId, string> = {
+  schematic: "mapbox://styles/mapbox/dark-v11",
+  satellite: "mapbox://styles/mapbox/satellite-streets-v12",
+};
 
 /* ------------------------------------------------------------------ */
 /* Real Mapbox GL map (used when a token is configured)                */
@@ -18,6 +31,8 @@ function MapboxMap() {
   const mapRef = useRef<import("mapbox-gl").Map | null>(null);
   const markerRef = useRef<import("mapbox-gl").Marker | null>(null);
   const selectPoint = useStore((s) => s.selectPoint);
+  const mapStyle = useStore((s) => s.mapStyle);
+  const selected = useStore((s) => s.selected);
 
   useEffect(() => {
     let cancelled = false;
@@ -29,7 +44,7 @@ function MapboxMap() {
       mapboxgl.accessToken = MAPBOX_TOKEN;
       const map = new mapboxgl.Map({
         container: containerRef.current,
-        style: "mapbox://styles/mapbox/dark-v11",
+        style: MAPBOX_STYLES[mapStyle],
         center: TAGANROG_CENTER,
         zoom: 14,
         pitch: 30,
@@ -37,12 +52,11 @@ function MapboxMap() {
       });
       mapRef.current = map;
 
-      map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
+      map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "bottom-right");
 
       map.on("click", (e) => {
         const { lng, lat } = e.lngLat;
 
-        // Drop / move the pulsing marker
         if (!markerRef.current) {
           const el = document.createElement("div");
           el.className = "urban-marker";
@@ -54,7 +68,7 @@ function MapboxMap() {
         }
 
         map.easeTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 16), duration: 800 });
-        selectPoint(lng, lat); // <-- Sync event: Map -> Store -> 3D Scene
+        selectPoint(lng, lat);
       });
     })();
 
@@ -62,29 +76,40 @@ function MapboxMap() {
       cancelled = true;
       mapRef.current?.remove();
       mapRef.current = null;
+      markerRef.current = null;
     };
+    // style is swapped in a separate effect so the map instance survives
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectPoint]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    map.setStyle(MAPBOX_STYLES[mapStyle]);
+    map.once("style.load", () => {
+      if (selected && markerRef.current) {
+        markerRef.current.addTo(map);
+      }
+    });
+  }, [mapStyle, selected]);
 
   return <div ref={containerRef} className="absolute inset-0" />;
 }
 
 /* ------------------------------------------------------------------ */
-/* Leaflet map — free dark CARTO raster basemap, no API key required.  */
-/* Default when NEXT_PUBLIC_MAPBOX_TOKEN is not set. Plain <img> tiles */
-/* (no WebGL / web workers), so it renders on any network that can     */
-/* reach {a,b,c}.basemaps.cartocdn.com.                                */
+/* Leaflet map — free raster basemap, no API key required.             */
 /* ------------------------------------------------------------------ */
-
-const CARTO_DARK_TILES =
-  "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-const CARTO_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>';
 
 function LeafletMap({ onFail }: { onFail: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<import("leaflet").Map | null>(null);
   const markerRef = useRef<import("leaflet").Marker | null>(null);
+  const tilesRef = useRef<import("leaflet").TileLayer | null>(null);
+  const [mapReady, setMapReady] = useState(false);
   const selectPoint = useStore((s) => s.selectPoint);
+  const mapStyle = useStore((s) => s.mapStyle);
+  const onFailRef = useRef(onFail);
+  onFailRef.current = onFail;
 
   useEffect(() => {
     let cancelled = false;
@@ -94,29 +119,15 @@ function LeafletMap({ onFail }: { onFail: () => void }) {
       if (cancelled || !containerRef.current || mapRef.current) return;
 
       const map = L.map(containerRef.current, {
-        center: [TAGANROG_CENTER[1], TAGANROG_CENTER[0]], // Leaflet is [lat, lng]
+        center: [TAGANROG_CENTER[1], TAGANROG_CENTER[0]],
         zoom: 14,
-        zoomControl: true,
+        zoomControl: false,
         attributionControl: true,
       });
       map.attributionControl.setPrefix(false);
+      L.control.zoom({ position: "bottomright" }).addTo(map);
       mapRef.current = map;
-
-      const tiles = L.tileLayer(CARTO_DARK_TILES, {
-        subdomains: "abcd",
-        maxZoom: 20,
-        attribution: CARTO_ATTRIBUTION,
-      }).addTo(map);
-
-      // Fall back to the offline mock map if the first tiles can't load
-      let loadedOnce = false;
-      let tileErrors = 0;
-      tiles.on("load", () => {
-        loadedOnce = true;
-      });
-      tiles.on("tileerror", () => {
-        if (!loadedOnce && ++tileErrors >= 4 && !cancelled) onFail();
-      });
+      setMapReady(true);
 
       const markerIcon = L.divIcon({
         className: "",
@@ -138,23 +149,71 @@ function LeafletMap({ onFail }: { onFail: () => void }) {
           animate: true,
           duration: 0.8,
         });
-        selectPoint(lng, lat); // <-- Sync event: Map -> Store -> 3D Scene
+        selectPoint(lng, lat);
       });
+
+      requestAnimationFrame(() => map.invalidateSize());
     })();
 
     return () => {
       cancelled = true;
+      setMapReady(false);
       mapRef.current?.remove();
       mapRef.current = null;
+      tilesRef.current = null;
+      markerRef.current = null;
     };
-  }, [selectPoint, onFail]);
+  }, [selectPoint]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map) return;
+    let cancelled = false;
+
+    (async () => {
+      const L = (await import("leaflet")).default;
+      if (cancelled || !mapRef.current) return;
+      if (tilesRef.current) {
+        map.removeLayer(tilesRef.current);
+        tilesRef.current = null;
+      }
+      const tiles =
+        mapStyle === "satellite"
+          ? L.tileLayer(SAT_TILES, {
+              maxZoom: 18,
+              maxNativeZoom: 18,
+              attribution: SAT_ATTRIBUTION,
+            })
+          : L.tileLayer(CARTO_DARK_TILES, {
+              subdomains: "abcd",
+              maxZoom: 20,
+              attribution: CARTO_ATTRIBUTION,
+            });
+      tiles.addTo(map);
+      tilesRef.current = tiles;
+
+      if (mapStyle === "schematic") {
+        let loadedOnce = false;
+        let tileErrors = 0;
+        tiles.on("load", () => {
+          loadedOnce = true;
+        });
+        tiles.on("tileerror", () => {
+          if (!loadedOnce && ++tileErrors >= 4 && !cancelled) onFailRef.current();
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mapStyle, mapReady]);
 
   return <div ref={containerRef} className="absolute inset-0 z-0" />;
 }
 
 /* ------------------------------------------------------------------ */
-/* Mock map — procedural dark street grid of Taganrog, fully clickable */
-/* (last-resort fallback when the free basemap can't be reached)       */
+/* Mock map — last-resort fallback                                     */
 /* ------------------------------------------------------------------ */
 
 function MockMap() {
@@ -177,11 +236,9 @@ function MockMap() {
     const w = parent.clientWidth;
     const h = parent.clientHeight;
 
-    // Base
     ctx.fillStyle = "#0a0f0d";
     ctx.fillRect(0, 0, w, h);
 
-    // Taganrog Bay in the south-west corner
     const sea = ctx.createLinearGradient(0, h, w * 0.5, h * 0.4);
     sea.addColorStop(0, "#06251f");
     sea.addColorStop(1, "#0a0f0d");
@@ -196,7 +253,6 @@ function MockMap() {
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // Street grid (Taganrog's historic diagonal grid)
     const rand = seededRandom(4.7);
     ctx.save();
     ctx.translate(w / 2, h / 2);
@@ -215,7 +271,6 @@ function MockMap() {
       ctx.lineTo(w, i * 42);
       ctx.stroke();
     }
-    // City blocks
     ctx.globalAlpha = 1;
     for (let i = 0; i < 120; i++) {
       const x = (rand() - 0.5) * w * 1.2;
@@ -225,13 +280,12 @@ function MockMap() {
     }
     ctx.restore();
 
-    // Landmark labels
     ctx.fillStyle = "rgba(167,243,208,0.55)";
     ctx.font = "11px monospace";
-    ctx.fillText("Petrovskaya st.", w * 0.42, h * 0.32);
-    ctx.fillText("Chekhov Theatre", w * 0.6, h * 0.48);
-    ctx.fillText("Pushkinskaya emb.", w * 0.12, h * 0.62);
-    ctx.fillText("TAGANROG BAY", w * 0.08, h * 0.85);
+    ctx.fillText("ул. Петровская", w * 0.42, h * 0.32);
+    ctx.fillText("Театр Чехова", w * 0.6, h * 0.48);
+    ctx.fillText("Пушкинская наб.", w * 0.12, h * 0.62);
+    ctx.fillText("ТАГАНРОГСКИЙ ЗАЛИВ", w * 0.08, h * 0.85);
   }, []);
 
   useEffect(() => {
@@ -246,10 +300,9 @@ function MockMap() {
     const y = e.clientY - rect.top;
     setMarker({ x, y });
 
-    // Project pixel position onto a plausible lng/lat window around Taganrog
-    const lng = TAGANROG_CENTER[0] + ((x / rect.width) - 0.5) * 0.06;
-    const lat = TAGANROG_CENTER[1] - ((y / rect.height) - 0.5) * 0.04;
-    selectPoint(lng, lat); // <-- Sync event: Map -> Store -> 3D Scene
+    const lng = TAGANROG_CENTER[0] + (x / rect.width - 0.5) * 0.06;
+    const lat = TAGANROG_CENTER[1] - (y / rect.height - 0.5) * 0.04;
+    selectPoint(lng, lat);
   };
 
   return (
@@ -274,18 +327,77 @@ function MockMap() {
       <div className="pointer-events-none absolute bottom-3 right-3">
         <Badge variant="secondary" className="backdrop-blur-md">
           <Satellite className="h-3 w-3" />
-          Offline basemap — live tiles unreachable
+          Офлайн-карта — тайлы недоступны
         </Badge>
       </div>
     </div>
   );
 }
 
+function MapChrome() {
+  const selected = useStore((s) => s.selected);
+  const mapStyle = useStore((s) => s.mapStyle);
+  const setMapStyle = useStore((s) => s.setMapStyle);
+  const toggleMapHidden = useStore((s) => s.toggleMapHidden);
+
+  return (
+    <>
+      <div className="pointer-events-none absolute left-3 top-16 z-[500]">
+        <div className="glass-strong flex items-center gap-2 rounded-lg px-3 py-2">
+          <MapPin className="h-4 w-4 text-emerald-400" />
+          <div className="text-xs">
+            <div className="font-semibold">Таганрог</div>
+            <div className="text-muted-foreground">
+              {selected
+                ? `${selected.lat.toFixed(5)}°N, ${selected.lng.toFixed(5)}°E`
+                : "Кликните, чтобы открыть площадку"}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="absolute bottom-3 left-3 z-[500] flex gap-1">
+        <button
+          type="button"
+          onClick={() => setMapStyle("schematic")}
+          className={`glass-strong flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] ${
+            mapStyle === "schematic"
+              ? "text-emerald-300 ring-1 ring-emerald-400/40"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <MapIcon className="h-3.5 w-3.5" />
+          Схема
+        </button>
+        <button
+          type="button"
+          onClick={() => setMapStyle("satellite")}
+          className={`glass-strong flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] ${
+            mapStyle === "satellite"
+              ? "text-emerald-300 ring-1 ring-emerald-400/40"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Satellite className="h-3.5 w-3.5" />
+          Спутник
+        </button>
+        <button
+          type="button"
+          onClick={toggleMapHidden}
+          className="glass-strong flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+          title="Скрыть карту"
+        >
+          <EyeOff className="h-3.5 w-3.5" />
+          Скрыть
+        </button>
+      </div>
+    </>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 
 export default function MapComponent() {
-  const selected = useStore((s) => s.selected);
-  // Basemap priority: Mapbox (if token) -> free Leaflet+CARTO -> offline mock
   const [tilesFailed, setTilesFailed] = useState(false);
   const handleTilesFail = useCallback(() => setTilesFailed(true), []);
 
@@ -298,21 +410,7 @@ export default function MapComponent() {
       ) : (
         <LeafletMap onFail={handleTilesFail} />
       )}
-
-      {/* Floating header chip */}
-      <div className="pointer-events-none absolute left-4 top-4 z-10">
-        <div className="glass-strong flex items-center gap-2 rounded-lg px-3 py-2">
-          <MapPin className="h-4 w-4 text-emerald-400" />
-          <div className="text-xs">
-            <div className="font-semibold">Taganrog, Russia</div>
-            <div className="text-muted-foreground">
-              {selected
-                ? `${selected.lat.toFixed(5)}°N, ${selected.lng.toFixed(5)}°E`
-                : "Click the map to open a planning sandbox"}
-            </div>
-          </div>
-        </div>
-      </div>
+      <MapChrome />
     </div>
   );
 }

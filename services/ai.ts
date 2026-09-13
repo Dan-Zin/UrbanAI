@@ -11,6 +11,11 @@
 
 import type { ComplianceResult, PlacedObject, SentimentResult } from "@/lib/store";
 import { seededRandom } from "@/lib/utils";
+import {
+  CATALOG_SYSTEM_PROMPT,
+  parseGeneratedPayload,
+  type GeneratedObjectPayload,
+} from "@/lib/catalog";
 
 const OPENROUTER_KEY = process.env.NEXT_PUBLIC_OPENROUTER_API_KEY ?? "";
 const FAL_KEY = process.env.NEXT_PUBLIC_FAL_API_KEY ?? "";
@@ -41,43 +46,43 @@ function parseModelJson<T>(raw: string): T {
 
 const MOCK_CATEGORIES = [
   {
-    category: "Park & Greenery",
+    category: "Парк и озеленение",
     summary:
-      "Residents near this block repeatedly ask for more shade, benches and a small pocket park. Foot traffic peaks in the evening.",
+      "Жители этого квартала просят больше тени, скамеек и небольшой сквер. Пешеходный поток сильнее вечером.",
     requests: [
-      { label: "Park", count: 34 },
-      { label: "Benches", count: 21 },
-      { label: "Playground", count: 12 },
+      { label: "Сквер", count: 34 },
+      { label: "Скамейки", count: 21 },
+      { label: "Площадка", count: 12 },
     ],
   },
   {
-    category: "Road Repair",
+    category: "Ремонт дорог",
     summary:
-      "Sentiment here is dominated by complaints about pavement quality and poor night lighting along the walking routes.",
+      "В отзывах преобладают жалобы на покрытие и слабое освещение пешеходных маршрутов.",
     requests: [
-      { label: "Road repair", count: 41 },
-      { label: "Lighting", count: 18 },
-      { label: "Crosswalk", count: 9 },
+      { label: "Ремонт дороги", count: 41 },
+      { label: "Освещение", count: 18 },
+      { label: "Переход", count: 9 },
     ],
   },
   {
-    category: "Public Transit",
+    category: "Общественный транспорт",
     summary:
-      "Commuters request a sheltered bus stop and better connections toward the seafront and Petrovskaya street.",
+      "Пассажиры просят крытую остановку и удобные связи к набережной и улице Петровской.",
     requests: [
-      { label: "Bus shelter", count: 27 },
-      { label: "New route", count: 15 },
-      { label: "Bike lane", count: 11 },
+      { label: "Павильон", count: 27 },
+      { label: "Новый маршрут", count: 15 },
+      { label: "Велодорожка", count: 11 },
     ],
   },
   {
-    category: "Waterfront Access",
+    category: "Выход к воде",
     summary:
-      "Strong positive engagement: people want stairs to the shore, viewpoints over the Taganrog Bay and evening lighting.",
+      "Позитивный запрос: лестницы к берегу, смотровые площадки на залив и вечерний свет.",
     requests: [
-      { label: "Sea access", count: 29 },
-      { label: "Viewpoint", count: 17 },
-      { label: "Lighting", count: 10 },
+      { label: "Спуск к морю", count: 29 },
+      { label: "Смотровая", count: 17 },
+      { label: "Освещение", count: 10 },
     ],
   },
 ];
@@ -112,14 +117,15 @@ export async function analyzeSentiment(
         {
           role: "system",
           content:
-            "You are an urban-planning NLP engine. Given coordinates in Taganrog, Russia, return STRICT JSON: " +
+            "Ты — NLP-движок городского планирования. Все текстовые поля — на русском. " +
+            "По координатам в Таганроге верни СТРОГИЙ JSON: " +
             '{"category": string, "sentiment": "positive"|"neutral"|"negative", "score": number 0..1, ' +
             '"topRequests": [{"label": string, "count": number}], "summary": string}. ' +
-            "Categorize the dominant citizen request (e.g. Park, Road repair, Transit).",
+            "Категория — доминирующий запрос жителей (сквер, ремонт дороги, транспорт и т.д.).",
         },
         {
           role: "user",
-          content: `Analyze community sentiment for location lng=${lng}, lat=${lat}.`,
+          content: `Разбери настроения жителей для точки lng=${lng}, lat=${lat}. Ответ на русском.`,
         },
       ],
       response_format: { type: "json_object" },
@@ -295,7 +301,7 @@ export async function analyzeStreetScene(opts: {
         {
           role: "system",
           content:
-            "You analyze street-level photos of Russian buildings for 3D reconstruction. Return STRICT JSON: " +
+            "Ты разбираешь уличные фото российских зданий для 3D-реконструкции. Верни СТРОГИЙ JSON: " +
             '{"facade":{"material":"brick|panel|plaster|wood|stone","color":"#hex","trimColor":"#hex",' +
             '"windowShape":"rect|arched","columns":bool,"corniceBands":bool},' +
             '"street":{"benches":int,"bins":int,"fence":bool,"extraTrees":int}}. ' +
@@ -304,7 +310,7 @@ export async function analyzeStreetScene(opts: {
         {
           role: "user",
           content: [
-            { type: "text", text: "Describe this building facade and nearby street objects." },
+            { type: "text", text: "Опиши фасад этого здания и объекты у входа. JSON без комментариев." },
             { type: "image_url", image_url: { url: opts.photoUrl } },
           ],
         },
@@ -470,7 +476,7 @@ export async function generate3DAsset(
 ): Promise<{ label: string; price: number }> {
   if (MOCK_MODE.model3d) {
     await delay(1200);
-    return { label: `AI: ${prompt.slice(0, 24)}`, price: 1500 };
+    return { label: `ИИ: ${prompt.slice(0, 24)}`, price: 1500 };
   }
   // Tripo AI integration point — create a task, poll, return a GLB url.
   // https://platform.tripo3d.ai/docs
@@ -483,7 +489,70 @@ export async function generate3DAsset(
     body: JSON.stringify({ type: "text_to_model", prompt }),
   });
   if (!res.ok) throw new Error(`Tripo error ${res.status}`);
-  return { label: `AI: ${prompt.slice(0, 24)}`, price: 1500 };
+  return { label: `ИИ: ${prompt.slice(0, 24)}`, price: 1500 };
+}
+
+/* ------------------------------------------------------------------ */
+/* Catalog objects — OpenRouter from the browser (same key as NLP)     */
+/* ------------------------------------------------------------------ */
+
+export async function generateCatalogObject(
+  prompt: string,
+  image: string | null
+): Promise<GeneratedObjectPayload> {
+  if (OPENROUTER_KEY) {
+    const userText = image
+      ? `По фото собери детальную модель (12–24 части, материалы дерева/металла/стекла, мелкие детали). Описание: ${prompt || "объект с фото"}`
+      : `Собери детальную реалистичную модель для каталога (12–24 части, не упрощай): ${prompt}`;
+    const content = image
+      ? [
+          { type: "text" as const, text: userText },
+          { type: "image_url" as const, image_url: { url: image } },
+        ]
+      : userText;
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${OPENROUTER_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer":
+            typeof window !== "undefined" ? window.location.origin : "http://localhost:3000",
+          "X-Title": "Urban AI",
+        },
+        body: JSON.stringify({
+          model: "anthropic/claude-sonnet-4.5",
+          messages: [
+            { role: "system", content: CATALOG_SYSTEM_PROMPT },
+            { role: "user", content },
+          ],
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const raw = data.choices?.[0]?.message?.content;
+        if (typeof raw === "string" && raw.trim()) {
+          const payload = parseGeneratedPayload(parseModelJson(raw), prompt);
+          return { ...payload, mock: false, provider: "openrouter" };
+        }
+      }
+    } catch {
+      /* fall through to the server route (xAI / mock) */
+    }
+  }
+
+  const res = await fetch("/api/generate-object", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, image }),
+  });
+  const data = (await res.json()) as GeneratedObjectPayload & { error?: string };
+  if (!res.ok) throw new Error(data.error ?? "fail");
+  return {
+    ...parseGeneratedPayload(data, prompt),
+    mock: data.mock,
+    provider: data.provider,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -491,10 +560,10 @@ export async function generate3DAsset(
 /* ------------------------------------------------------------------ */
 
 const GIS_LAYERS = [
-  "Underground Utilities",
-  "Water Mains",
-  "Heritage Zone (Old Taganrog)",
-  "Gas Pipelines",
+  "Подземные коммуникации",
+  "Водопровод",
+  "Охранная зона (старый Таганрог)",
+  "Газопроводы",
 ];
 
 export async function checkCompliance(
@@ -513,12 +582,12 @@ export async function checkCompliance(
   return failed.length === 0
     ? {
         status: "clear",
-        message: "All GIS layers clear — placement approved",
+        message: "Все слои GIS свободны — размещение допустимо",
         layers,
       }
     : {
         status: "warning",
-        message: `Conflict: ${failed.map((f) => f.name).join(", ")}`,
+        message: `Конфликт: ${failed.map((f) => f.name).join(", ")}`,
         layers,
       };
 }

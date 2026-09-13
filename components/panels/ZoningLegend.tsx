@@ -1,17 +1,18 @@
 "use client";
 
-import { Eye, EyeOff, Satellite } from "lucide-react";
+import { Eye, EyeOff, LoaderCircle, Sparkles, Satellite } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { ZONE_COLORS } from "@/components/scene/zoneColors";
+import { FloatingPanel } from "@/components/ui/FloatingPanel";
 
 const LABELS: Record<string, string> = {
-  residential: "Residential",
-  commercial: "Commercial",
-  industrial: "Industrial",
-  retail: "Retail",
-  education: "Education",
-  green: "Green / parks",
-  water: "Water",
+  residential: "Жилая",
+  commercial: "Коммерция",
+  industrial: "Промышленность",
+  retail: "Ритейл",
+  education: "Образование",
+  green: "Парки",
+  water: "Вода",
 };
 
 export default function ZoningLegend() {
@@ -20,19 +21,27 @@ export default function ZoningLegend() {
   const toggleZoning = useStore((s) => s.toggleZoning);
   const showSatellite = useStore((s) => s.showSatellite);
   const toggleSatellite = useStore((s) => s.toggleSatellite);
+  const enhanceSatellite = useStore((s) => s.enhanceSatellite);
+  const toggleEnhanceSatellite = useStore((s) => s.toggleEnhanceSatellite);
+  const satelliteStatus = useStore((s) => s.satelliteStatus);
 
   if (!surroundings) return null;
   const kinds = Array.from(new Set(surroundings.areas.map((a) => a.kind)));
 
   return (
-    <div className="glass-strong absolute left-3 top-12 z-10 rounded-lg p-2 text-[10px]">
+    <FloatingPanel
+      id="zoning"
+      title="Слои"
+      className="absolute left-3 top-28 z-10"
+      bodyClassName="p-2 text-[10px]"
+    >
       <button
         onClick={toggleSatellite}
         className="mb-1 flex w-full items-center justify-between gap-3 font-semibold text-muted-foreground hover:text-foreground"
       >
         <span className="flex items-center gap-1.5">
           <Satellite className="h-3 w-3" />
-          Satellite
+          Спутник 3D
         </span>
         {showSatellite ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
       </button>
@@ -41,7 +50,7 @@ export default function ZoningLegend() {
           onClick={toggleZoning}
           className="mb-1 flex w-full items-center justify-between gap-3 font-semibold text-muted-foreground hover:text-foreground"
         >
-          <span>Land use</span>
+          <span>Зонирование</span>
           {showZoning ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
         </button>
       )}
@@ -56,10 +65,38 @@ export default function ZoningLegend() {
           </div>
         ))}
       {showSatellite && (
-        <div className="mt-1 border-t border-white/10 pt-1 text-[8px] text-muted-foreground/70">
-          Imagery © Esri, Maxar
-        </div>
+        <>
+          <button
+            onClick={toggleEnhanceSatellite}
+            className="mb-1 flex w-full items-center justify-between gap-3 font-semibold text-muted-foreground hover:text-foreground"
+          >
+            <span className="flex items-center gap-1.5">
+              <Sparkles className="h-3 w-3" />
+              Нейросеть
+            </span>
+            {enhanceSatellite ? (
+              <Eye className="h-3 w-3" />
+            ) : (
+              <EyeOff className="h-3 w-3" />
+            )}
+          </button>
+          <div className="mt-1 border-t border-white/10 pt-1 text-[8px] text-muted-foreground/70">
+            {satelliteStatus === "loading" && "Собираю 4K-тайлы (z20/z19)…"}
+            {satelliteStatus === "enhancing" && (
+              <span className="flex items-center gap-1">
+                <LoaderCircle className="h-3 w-3 animate-spin" />
+                Масштабирую подложку до 4096…
+              </span>
+            )}
+            {satelliteStatus === "ready" &&
+              (enhanceSatellite
+                ? "Подложка 4K (4096), без mipmap"
+                : "Спутник без 4K-масштаба")}
+            {satelliteStatus === "failed" && "Снимок не загрузился"}
+            {satelliteStatus === "idle" && "Спутник через локальный прокси"}
+          </div>
+        </>
       )}
-    </div>
+    </FloatingPanel>
   );
 }

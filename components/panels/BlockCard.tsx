@@ -29,7 +29,7 @@ export default function BlockCard() {
           initial={{ y: 30, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 30, opacity: 0 }}
-          className="glass-strong absolute bottom-4 left-4 z-10 w-64 rounded-xl p-3"
+          className="glass-strong absolute bottom-3 left-[16.5rem] z-10 w-64 rounded-xl p-3"
         >
           <div className="mb-2 flex items-center gap-2 text-xs">
             <Boxes className="h-4 w-4 text-emerald-400" />

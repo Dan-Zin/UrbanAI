@@ -19,7 +19,7 @@ export default function CompliancePanel() {
     let stale = false;
     setCompliance({
       status: "checking",
-      message: "Checking GIS layers…",
+      message: "Проверяю слои GIS…",
       layers: [],
     });
     checkCompliance(objects, selected.lng, selected.lat).then((r) => {
@@ -48,7 +48,7 @@ export default function CompliancePanel() {
           ) : (
             <ShieldCheck className="h-4 w-4 text-emerald-400" />
           )}
-          Safety Check
+          Проверка ограничений
         </CardTitle>
         <span className={`h-3 w-3 rounded-full transition-colors ${statusLight}`} />
       </CardHeader>
@@ -86,7 +86,7 @@ export default function CompliancePanel() {
                     {l.name}
                   </span>
                   <span className={l.ok ? "text-emerald-400" : "text-amber-400"}>
-                    {l.ok ? "Clear" : "Conflict"}
+                    {l.ok ? "Свободно" : "Конфликт"}
                   </span>
                 </li>
               ))}

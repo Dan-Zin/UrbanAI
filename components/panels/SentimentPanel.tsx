@@ -41,9 +41,9 @@ export default function SentimentPanel() {
       <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle className="flex items-center gap-2">
           <Brain className="h-4 w-4 text-emerald-400" />
-          Community Sentiment
+          Настроения жителей
         </CardTitle>
-        <Badge variant="secondary">{MOCK_MODE.nlp ? "Mock" : "OpenRouter"}</Badge>
+        <Badge variant="secondary">{MOCK_MODE.nlp ? "Макет" : "OpenRouter"}</Badge>
       </CardHeader>
       <CardContent>
         <div>
@@ -62,7 +62,7 @@ export default function SentimentPanel() {
                 />
               ))}
               <div className="pt-1 text-[11px] text-muted-foreground">
-                Analyzing citizen feedback…
+                Разбираю обращения жителей…
               </div>
             </motion.div>
           ) : sentiment ? (
@@ -125,8 +125,7 @@ export default function SentimentPanel() {
               animate={{ opacity: 1 }}
               className="text-xs text-muted-foreground"
             >
-              Select a point on the map to analyze what residents are asking
-              for in that area.
+              Выберите точку на карте — разберём, чего просят жители в этом месте.
             </motion.p>
           )}
         </div>

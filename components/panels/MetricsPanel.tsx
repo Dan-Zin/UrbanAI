@@ -7,9 +7,10 @@ import {
   computeContextMetrics,
   computeScenarioMetrics,
 } from "@/lib/metrics";
+import { FloatingPanel } from "@/components/ui/FloatingPanel";
 
 function fmt(n: number) {
-  return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  return n.toLocaleString("ru-RU", { maximumFractionDigits: 0 });
 }
 
 export default function MetricsPanel() {
@@ -28,33 +29,35 @@ export default function MetricsPanel() {
   const rows = [
     {
       icon: Layers3,
-      label: "GFA, m²",
+      label: "GFA, м²",
       a: fmt(mA.proposedGFA),
       b: fmt(mB.proposedGFA),
     },
-    { icon: Users, label: "Residents", a: fmt(mA.residents), b: fmt(mB.residents) },
-    { icon: Briefcase, label: "Jobs", a: fmt(mA.jobs), b: fmt(mB.jobs) },
+    { icon: Users, label: "Жители", a: fmt(mA.residents), b: fmt(mB.residents) },
+    { icon: Briefcase, label: "Рабочие места", a: fmt(mA.jobs), b: fmt(mB.jobs) },
     {
       icon: Landmark,
-      label: "Invest, $",
+      label: "Инвест., $",
       a: fmt(mA.investment),
       b: fmt(mB.investment),
     },
     {
       icon: BarChart3,
-      label: "FAR (site)",
+      label: "FAR",
       a: mA.far.toFixed(1),
       b: mB.far.toFixed(1),
     },
   ];
 
   return (
-    <div className="glass-strong absolute bottom-4 right-3 z-10 w-60 rounded-xl p-3 text-xs">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="font-semibold tracking-wide">Capacity</span>
-        <span className="text-[10px] text-muted-foreground">
-          ctx: {fmt(context.contextGFA)} m² · {fmt(context.contextResidents)} res
-        </span>
+    <FloatingPanel
+      id="metrics"
+      title="Ёмкость"
+      className="absolute bottom-3 left-3 z-10 w-60"
+      bodyClassName="p-3 text-xs"
+    >
+      <div className="mb-2 text-[10px] text-muted-foreground">
+        контекст: {fmt(context.contextGFA)} м² · {fmt(context.contextResidents)} жит.
       </div>
 
       <div className="mb-1 grid grid-cols-[1fr_3.4rem_3.4rem] gap-1 text-[10px] text-muted-foreground">
@@ -95,6 +98,6 @@ export default function MetricsPanel() {
           </span>
         </div>
       ))}
-    </div>
+    </FloatingPanel>
   );
 }

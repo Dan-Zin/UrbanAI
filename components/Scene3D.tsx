@@ -18,14 +18,15 @@ import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { useStore, type Building, type PlacedObject } from "@/lib/store";
 import { sunAt } from "@/lib/sun";
+import { SANDBOX_SIZE } from "@/lib/constants";
 import SurroundingsView from "@/components/scene/Surroundings";
+import CatalogMesh from "@/components/scene/CatalogMesh";
 import BuildingCard from "@/components/panels/BuildingCard";
 import BlockCard from "@/components/panels/BlockCard";
 import TimeSlider from "@/components/panels/TimeSlider";
 import MetricsPanel from "@/components/panels/MetricsPanel";
 import ZoningLegend from "@/components/panels/ZoningLegend";
-
-const SANDBOX_SIZE = 10; // 10m x 10m planning area
+import TransformToolbar from "@/components/TransformToolbar";
 
 /** Keeps optional remote-asset components (HDR env map, SDF font) from
  *  blanking the whole canvas if their fetch fails, e.g. offline demos. */
@@ -225,7 +226,7 @@ function AIObjectMesh() {
 }
 
 const OBJECT_MESHES: Record<
-  Exclude<PlacedObject["kind"], "block">,
+  Exclude<PlacedObject["kind"], "block" | "catalog">,
   () => JSX.Element
 > = {
   tree: TreeMesh,
@@ -243,24 +244,52 @@ function PlacedObjectNode({ object }: { object: PlacedObject }) {
   const [group, setGroup] = useState<THREE.Group | null>(null);
   const activeObjectId = useStore((s) => s.activeObjectId);
   const setActiveObject = useStore((s) => s.setActiveObject);
-  const moveObject = useStore((s) => s.moveObject);
+  const updateObject = useStore((s) => s.updateObject);
   const setTransforming = useStore((s) => s.setTransforming);
+  const transforming = useStore((s) => s.transforming);
+  const transformMode = useStore((s) => s.transformMode);
 
   const isActive = activeObjectId === object.id;
-  const Mesh = object.kind === "block" ? null : OBJECT_MESHES[object.kind];
-  const ringR = object.kind === "block" ? 5.4 : 0.75;
+  const Mesh =
+    object.kind === "block" || object.kind === "catalog" || object.mesh
+      ? null
+      : OBJECT_MESHES[object.kind];
+  const scale = object.scale ?? [1, 1, 1];
+  const ringR =
+    (object.kind === "block"
+      ? 5.4
+      : object.mesh
+        ? Math.max(object.mesh.size[0], object.mesh.size[2]) * 0.65 + 0.2
+        : 0.75) * Math.max(scale[0], scale[2]);
+
+  const live = isActive && transforming;
+  const pose = live
+    ? {}
+    : {
+        position: object.position,
+        rotation: object.rotation ?? [0, 0, 0],
+        scale,
+      };
 
   return (
     <>
       <group
         ref={setGroup}
-        position={object.position}
+        {...pose}
         onClick={(e) => {
           e.stopPropagation();
           setActiveObject(object.id);
         }}
       >
-        {Mesh ? <Mesh /> : <BlockMesh object={object} />}
+        {object.kind === "block" ? (
+          <BlockMesh object={object} />
+        ) : object.mesh ? (
+          <CatalogMesh mesh={object.mesh} />
+        ) : Mesh ? (
+          <Mesh />
+        ) : (
+          <AIObjectMesh />
+        )}
         {isActive && (
           <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
             <ringGeometry args={[ringR, ringR + 0.14, 32]} />
@@ -272,18 +301,26 @@ function PlacedObjectNode({ object }: { object: PlacedObject }) {
       {isActive && group && (
         <TransformControls
           object={group}
-          mode="translate"
-          showY={false}
-          size={0.7}
+          mode={transformMode}
+          space={transformMode === "translate" ? "world" : "local"}
+          showY={transformMode !== "translate"}
+          size={0.85}
           onMouseDown={() => setTransforming(true)}
           onMouseUp={() => {
             setTransforming(false);
-            // Clamp to the sandbox and persist to the store
             const half = SANDBOX_SIZE / 2 - 0.3;
             const x = THREE.MathUtils.clamp(group.position.x, -half, half);
             const z = THREE.MathUtils.clamp(group.position.z, -half, half);
             group.position.set(x, 0, z);
-            moveObject(object.id, [x, 0, z]);
+            const sx = THREE.MathUtils.clamp(group.scale.x, 0.15, 6);
+            const sy = THREE.MathUtils.clamp(group.scale.y, 0.15, 6);
+            const sz = THREE.MathUtils.clamp(group.scale.z, 0.15, 6);
+            group.scale.set(sx, sy, sz);
+            updateObject(object.id, {
+              position: [x, 0, z],
+              rotation: [group.rotation.x, group.rotation.y, group.rotation.z],
+              scale: [sx, sy, sz],
+            });
           }}
         />
       )}
@@ -325,7 +362,7 @@ function SandboxContent() {
   // Gentle camera reset whenever a new site is selected
   useEffect(() => {
     if (selected) {
-      camera.position.set(9, 8, 9);
+      camera.position.set(SANDBOX_SIZE * 0.85, SANDBOX_SIZE * 0.65, SANDBOX_SIZE * 0.85);
       controlsRef.current?.target.set(0, 0, 0);
     }
   }, [selected, camera]);
@@ -347,11 +384,11 @@ function SandboxContent() {
         color={sunColor}
         castShadow
         shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-90}
-        shadow-camera-right={90}
-        shadow-camera-top={90}
-        shadow-camera-bottom={-90}
-        shadow-camera-far={220}
+        shadow-camera-left={-180}
+        shadow-camera-right={180}
+        shadow-camera-top={180}
+        shadow-camera-bottom={-180}
+        shadow-camera-far={420}
         shadow-bias={-0.0004}
       />
       {/* moon / sky fill at night */}
@@ -361,16 +398,16 @@ function SandboxContent() {
         color="#5b7ea8"
       />
 
-      {/* 10x10m sandbox area */}
+      {/* Planning sandbox area */}
       <Grid
         args={[SANDBOX_SIZE, SANDBOX_SIZE]}
-        cellSize={1}
+        cellSize={2}
         cellThickness={0.6}
         cellColor="#134e4a"
-        sectionSize={5}
+        sectionSize={10}
         sectionThickness={1.2}
         sectionColor="#10b981"
-        fadeDistance={40}
+        fadeDistance={90}
         fadeStrength={1.5}
         position={[0, 0.01, 0]}
       />
@@ -415,7 +452,7 @@ function SandboxContent() {
           color="#34d399"
           anchorX="center"
         >
-          {`PLANNING SANDBOX · 10m x 10m · ${selected.lat.toFixed(4)}N ${selected.lng.toFixed(4)}E`}
+          {`ПЛОЩАДКА · ${SANDBOX_SIZE}×${SANDBOX_SIZE} м · ${selected.lat.toFixed(4)}N ${selected.lng.toFixed(4)}E`}
         </Text>
         </SafeAsset>
       )}
@@ -423,9 +460,9 @@ function SandboxContent() {
       <ContactShadows
         position={[0, 0, 0]}
         opacity={0.55}
-        scale={30}
+        scale={SANDBOX_SIZE * 2.2}
         blur={2.2}
-        far={12}
+        far={18}
       />
 
       <OrbitControls
@@ -433,8 +470,8 @@ function SandboxContent() {
         enabled={!transforming}
         makeDefault
         maxPolarAngle={Math.PI / 2.05}
-        minDistance={4}
-        maxDistance={130}
+        minDistance={8}
+        maxDistance={280}
         enableDamping
       />
     </>
@@ -450,13 +487,13 @@ function DataSourceBadge() {
 
   const label =
     osmStatus === "loading"
-      ? "Loading real city data (OSM)…"
+      ? "Загружаю здания и улицы (OSM)…"
       : osmStatus === "ready" && surroundings
-        ? `OpenStreetMap · ${surroundings.buildings.length} buildings · ${surroundings.roads.length} roads`
-        : "OSM unavailable — procedural blocks";
+        ? `OpenStreetMap · ${surroundings.buildings.length} зданий · ${surroundings.roads.length} дорог`
+        : "OSM недоступен — процедурные блоки";
 
   return (
-    <div className="pointer-events-none absolute left-3 top-3 z-10">
+    <div className="pointer-events-none absolute left-3 top-16 z-10">
       <div className="glass-strong flex items-center gap-2 rounded-lg px-3 py-1.5 text-[11px]">
         <span
           className={`h-2 w-2 rounded-full ${
@@ -490,7 +527,10 @@ export default function Scene3D() {
     <div className="relative h-full w-full">
       <Canvas
         shadows
-        camera={{ position: [9, 8, 9], fov: 45 }}
+        camera={{
+          position: [SANDBOX_SIZE * 0.85, SANDBOX_SIZE * 0.65, SANDBOX_SIZE * 0.85],
+          fov: 45,
+        }}
         gl={{ antialias: true }}
         dpr={[1, 2]}
       >
@@ -514,15 +554,16 @@ export default function Scene3D() {
       <BlockCard />
       {selected && <TimeSlider />}
       {selected && <MetricsPanel />}
+      {selected && <TransformToolbar />}
 
       {!selected && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="glass-strong rounded-xl px-6 py-4 text-center">
             <div className="text-sm font-medium text-emerald-300">
-              No site selected
+              Точка не выбрана
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
-              Click a point on the map to generate the 3D sandbox
+              Кликните на карте, чтобы открыть 3D-площадку
             </div>
           </div>
         </div>
