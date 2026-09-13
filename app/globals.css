@@ -1,0 +1,137 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 160 15% 4%;
+    --foreground: 150 10% 92%;
+    --card: 160 12% 7%;
+    --card-foreground: 150 10% 92%;
+    --primary: 152 76% 45%;
+    --primary-foreground: 160 15% 4%;
+    --secondary: 160 10% 12%;
+    --secondary-foreground: 150 10% 92%;
+    --muted: 160 8% 14%;
+    --muted-foreground: 150 6% 60%;
+    --accent: 152 60% 20%;
+    --accent-foreground: 152 76% 70%;
+    --border: 160 10% 16%;
+    --input: 160 10% 16%;
+    --ring: 152 76% 45%;
+    --radius: 0.75rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body {
+    @apply h-full overflow-hidden bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  /* Glassmorphism surfaces */
+  .glass {
+    @apply border border-white/10 bg-white/[0.04] backdrop-blur-xl;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .glass-strong {
+    @apply border border-white/10 bg-black/40 backdrop-blur-2xl;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .glass-emerald {
+    @apply border border-emerald-400/20 bg-emerald-500/[0.06] backdrop-blur-xl;
+    box-shadow: 0 8px 32px rgba(16, 185, 129, 0.08),
+      inset 0 1px 0 rgba(110, 231, 183, 0.1);
+  }
+
+  .text-glow {
+    text-shadow: 0 0 24px rgba(52, 211, 153, 0.45);
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(52, 211, 153, 0.25);
+    border-radius: 9999px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(52, 211, 153, 0.45);
+  }
+}
+
+/* Leaflet chrome adjustments for dark glass theme */
+.leaflet-container {
+  background: #0a0f0d;
+  font-family: inherit;
+}
+
+.leaflet-control-zoom a {
+  background: rgba(10, 15, 13, 0.85) !important;
+  color: #6ee7b7 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(8px);
+}
+
+.leaflet-control-zoom a:hover {
+  background: rgba(16, 185, 129, 0.2) !important;
+}
+
+.leaflet-control-attribution {
+  background: rgba(10, 15, 13, 0.6) !important;
+  color: rgba(148, 163, 184, 0.7) !important;
+  font-size: 9px !important;
+}
+
+.leaflet-control-attribution a {
+  color: rgba(110, 231, 183, 0.7) !important;
+}
+
+/* Mapbox chrome adjustments for dark glass theme */
+.mapboxgl-ctrl-logo,
+.mapboxgl-ctrl-attrib {
+  opacity: 0.35;
+}
+
+.mapboxgl-canvas {
+  outline: none;
+}
+
+/* Custom map marker pulse */
+.urban-marker {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #10b981;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  animation: marker-pulse 2s infinite;
+  cursor: pointer;
+}
+
+@keyframes marker-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 18px rgba(16, 185, 129, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
