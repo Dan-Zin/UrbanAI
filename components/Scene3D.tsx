@@ -341,6 +341,11 @@ function SandboxContent() {
   const setActiveObject = useStore((s) => s.setActiveObject);
   const setActiveBuilding = useStore((s) => s.setActiveBuilding);
   const timeOfDay = useStore((s) => s.timeOfDay);
+  const showSatellite = useStore((s) => s.showSatellite);
+  const satelliteStatus = useStore((s) => s.satelliteStatus);
+  const satDraped =
+    showSatellite &&
+    (satelliteStatus === "ready" || satelliteStatus === "enhancing");
   const controlsRef = useRef<OrbitControlsImpl>(null);
   const { camera } = useThree();
 
@@ -409,26 +414,29 @@ function SandboxContent() {
         sectionColor="#10b981"
         fadeDistance={90}
         fadeStrength={1.5}
-        position={[0, 0.01, 0]}
+        position={[0, satDraped ? 0.12 : 0.02, 0]}
+        renderOrder={3}
       />
 
-      {/* Sandbox boundary */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]}>
-        <planeGeometry args={[SANDBOX_SIZE, SANDBOX_SIZE]} />
-        <meshStandardMaterial color="#052e26" transparent opacity={0.5} />
-      </mesh>
+      {/* Sandbox fill — hidden when the orthophoto is down, it z-fights the sat */}
+      {!satDraped && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]}>
+          <planeGeometry args={[SANDBOX_SIZE, SANDBOX_SIZE]} />
+          <meshStandardMaterial color="#052e26" transparent opacity={0.5} />
+        </mesh>
+      )}
 
-      {/* Ground plane extending under the neighbourhood */}
+      {/* Ground click-catcher. Parked well below the sat plane to avoid z-fight. */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, -0.01, 0]}
-        receiveShadow
+        position={[0, satDraped ? -2 : -0.02, 0]}
+        receiveShadow={!satDraped}
         onClick={() => {
           setActiveObject(null);
           setActiveBuilding(null);
         }}
       >
-        <planeGeometry args={[400, 400]} />
+        <planeGeometry args={[800, 800]} />
         <meshStandardMaterial color="#0a1210" roughness={1} />
       </mesh>
 
@@ -457,13 +465,15 @@ function SandboxContent() {
         </SafeAsset>
       )}
 
-      <ContactShadows
-        position={[0, 0, 0]}
-        opacity={0.55}
-        scale={SANDBOX_SIZE * 2.2}
-        blur={2.2}
-        far={18}
-      />
+      {!satDraped && (
+        <ContactShadows
+          position={[0, 0, 0]}
+          opacity={0.55}
+          scale={SANDBOX_SIZE * 2.2}
+          blur={2.2}
+          far={18}
+        />
+      )}
 
       <OrbitControls
         ref={controlsRef}
@@ -531,7 +541,7 @@ export default function Scene3D() {
           position: [SANDBOX_SIZE * 0.85, SANDBOX_SIZE * 0.65, SANDBOX_SIZE * 0.85],
           fov: 45,
         }}
-        gl={{ antialias: true }}
+        gl={{ antialias: true, logarithmicDepthBuffer: true }}
         dpr={[1, 2]}
       >
         <color attach="background" args={[sky]} />
@@ -540,9 +550,9 @@ export default function Scene3D() {
         </Suspense>
         <EffectComposer>
           <Bloom
-            intensity={0.9}
-            luminanceThreshold={0.55}
-            luminanceSmoothing={0.3}
+            intensity={0.55}
+            luminanceThreshold={0.82}
+            luminanceSmoothing={0.4}
             mipmapBlur
           />
         </EffectComposer>

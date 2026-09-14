@@ -931,15 +931,17 @@ function RealBuilding({
       : null;
     // Flat roofs get their REAL roof from the satellite orthophoto;
     // gabled roofs stay geometric (slopes aren't visible in an orthophoto)
-    let roofMat: THREE.MeshStandardMaterial;
+    let roofMat: THREE.MeshStandardMaterial | THREE.MeshBasicMaterial;
     if (imagery && !gableGeo) {
       const roofTex = imagery.texture.clone();
       applyGroundMapping(roofTex, imagery.size);
       roofTex.needsUpdate = true;
-      roofMat = new THREE.MeshStandardMaterial({
+      roofMat = new THREE.MeshBasicMaterial({
         map: roofTex,
-        roughness: 0.92,
         side: THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -1,
       });
     } else {
       roofMat = new THREE.MeshStandardMaterial({
@@ -968,7 +970,14 @@ function RealBuilding({
       plinthGeo,
       plinthMat,
     };
-  }, [building, textureOverride, windowGlow, analysis, imagery]);
+  }, [
+    building,
+    textureOverride,
+    windowGlow,
+    analysis,
+    imagery?.texture,
+    imagery?.size,
+  ]);
 
   return (
     <group>
@@ -1329,13 +1338,18 @@ function ZonePatch({ area }: { area: OsmArea }) {
     <mesh
       geometry={geometry}
       rotation={[-Math.PI / 2, 0, 0]}
-      position={[0, 0.006, 0]}
+      position={[0, 0.14, 0]}
+      renderOrder={2}
     >
       <meshBasicMaterial
         color={ZONE_COLORS[area.kind]}
         transparent
         opacity={0.13}
         depthWrite={false}
+        depthTest
+        polygonOffset
+        polygonOffsetFactor={-2}
+        polygonOffsetUnits={-2}
       />
     </mesh>
   );
@@ -1426,10 +1440,16 @@ function SatelliteGround({ imagery }: { imagery: GroundImagery }) {
     <mesh
       geometry={geometry}
       rotation={[-Math.PI / 2, 0, 0]}
-      position={[0, 0.004, 0]}
-      receiveShadow
+      position={[0, 0.02, 0]}
+      renderOrder={-1}
     >
-      <meshBasicMaterial map={imagery.texture} />
+      <meshBasicMaterial
+        map={imagery.texture}
+        depthWrite
+        polygonOffset
+        polygonOffsetFactor={1}
+        polygonOffsetUnits={1}
+      />
     </mesh>
   );
 }
@@ -1452,8 +1472,8 @@ export default function SurroundingsView({ data }: { data: Surroundings }) {
   const setSatelliteStatus = useStore((s) => s.setSatelliteStatus);
   useEffect(() => {
     let stale = false;
-    setImagery(null);
     if (!selected) {
+      setImagery(null);
       setSatelliteStatus("idle");
       return;
     }
@@ -1473,11 +1493,10 @@ export default function SurroundingsView({ data }: { data: Surroundings }) {
       setSatelliteStatus("enhancing");
       try {
         const better = await enhanceGroundImagery(raw);
-        if (!stale) {
-          raw.texture.dispose();
-          setImagery(better);
-          setSatelliteStatus("ready");
-        }
+        if (stale) return;
+        setImagery(better);
+        if (better.texture !== raw.texture) raw.texture.dispose();
+        setSatelliteStatus("ready");
       } catch {
         if (!stale) setSatelliteStatus("ready");
       }
@@ -1491,9 +1510,7 @@ export default function SurroundingsView({ data }: { data: Surroundings }) {
 
   return (
     <group>
-      {satActive && imagery && (
-        <SatelliteGround key={imagery.texture.uuid} imagery={imagery} />
-      )}
+      {satActive && imagery && <SatelliteGround imagery={imagery} />}
       {/* painted ground cover only when the real photo is off/unavailable */}
       {!satActive &&
         data.areas
