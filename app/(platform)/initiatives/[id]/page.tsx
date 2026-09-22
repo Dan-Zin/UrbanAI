@@ -1,0 +1,203 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusBadge, PriorityBadge } from "@/components/initiatives/StatusBadge";
+import { usePlatform } from "@/lib/platform-store";
+import { CATEGORY_LABELS, STATUS_LABELS, type InitiativeStatus } from "@/lib/domain";
+import { DISTRICTS } from "@/lib/seed";
+import { formatDate } from "@/lib/format";
+import { isOverdue } from "@/lib/geo";
+
+const NEXT: InitiativeStatus[] = ["review", "in_progress", "done", "rejected"];
+
+export default function InitiativePage() {
+  const { id } = useParams<{ id: string }>();
+  const initiatives = usePlatform((s) => s.initiatives);
+  const users = usePlatform((s) => s.users);
+  const currentUserId = usePlatform((s) => s.currentUserId);
+  const roleView = usePlatform((s) => s.roleView);
+  const voteInitiative = usePlatform((s) => s.voteInitiative);
+  const commentInitiative = usePlatform((s) => s.commentInitiative);
+  const changeStatus = usePlatform((s) => s.changeStatus);
+  const [text, setText] = useState("");
+  const [statusComment, setStatusComment] = useState("");
+
+  const item = initiatives.find((i) => i.id === id);
+  if (!item) {
+    return <p className="p-8 text-sm text-muted-foreground">Заявка не найдена.</p>;
+  }
+  const author = users.find((u) => u.id === item.authorId);
+  const district = DISTRICTS.find((d) => d.id === item.districtId);
+  const voted = item.votes.includes(currentUserId);
+  const admin = roleView !== "citizen";
+  const overdue = isOverdue(item);
+
+  return (
+    <div className="mx-auto grid max-w-5xl gap-6 px-4 py-8 lg:grid-cols-[1.2fr_0.8fr]">
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusBadge status={item.status} />
+          <PriorityBadge priority={item.priority} />
+          {overdue && <span className="text-xs text-rose-300">Просрочена</span>}
+        </div>
+        <h1 className="text-2xl font-semibold">{item.title}</h1>
+        <p className="text-sm text-muted-foreground">
+          {item.address} · {district?.name} · {CATEGORY_LABELS[item.category]}
+        </p>
+        <Card>
+          <CardHeader>
+            <CardTitle>Суть проблемы</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <p>{item.description}</p>
+            {item.reformulated && (
+              <p className="rounded-md border border-emerald-400/20 bg-emerald-500/10 p-3">
+                <span className="text-[11px] uppercase tracking-wide text-emerald-300">
+                  ИИ-формулировка
+                </span>
+                <br />
+                {item.reformulated}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {item.visualization && (
+          <Card className="glass-emerald">
+            <CardHeader>
+              <CardTitle>3D-эскиз</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <p>{item.visualization.note}</p>
+              <p className="text-muted-foreground">
+                Объектов: {item.visualization.objectCount} · ориентир. смета{" "}
+                {item.visualization.cost.toLocaleString("ru-RU")} ₽
+              </p>
+              <Link
+                href={`/studio?lng=${item.lng}&lat=${item.lat}&initiative=${item.id}`}
+              >
+                <Button size="sm" variant="outline">
+                  Открыть в студии
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Комментарии</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {item.comments.map((c) => (
+              <div key={c.id} className="rounded-md border border-white/10 p-3 text-sm">
+                <div className="text-[11px] text-muted-foreground">
+                  {users.find((u) => u.id === c.authorId)?.name} · {formatDate(c.createdAt)}
+                </div>
+                <p className="mt-1">{c.text}</p>
+              </div>
+            ))}
+            <textarea
+              className="min-h-20 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm"
+              placeholder="Комментарий"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
+            <Button
+              size="sm"
+              disabled={!text.trim()}
+              onClick={() => {
+                commentInitiative(item.id, text);
+                setText("");
+              }}
+            >
+              Отправить
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="space-y-3 p-4 text-sm">
+            <div>Автор: {author?.name}</div>
+            <div>Ответственный: {item.assignee}</div>
+            <div>Срок: {formatDate(item.dueAt)}</div>
+            <div>Голосов: {item.votes.length}</div>
+            <Button
+              className="w-full"
+              variant={voted ? "secondary" : "default"}
+              onClick={() => voteInitiative(item.id)}
+              disabled={voted}
+            >
+              {voted ? "Вы уже поддержали" : "Поддержать"}
+            </Button>
+            {!item.visualization && (
+              <Link href={`/studio?lng=${item.lng}&lat=${item.lat}&initiative=${item.id}`}>
+                <Button className="w-full" variant="outline">
+                  Добавить 3D-эскиз
+                </Button>
+              </Link>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>История статусов</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {item.history.map((h, idx) => (
+              <div key={idx} className="border-l border-emerald-400/30 pl-3">
+                <div className="text-[11px] text-muted-foreground">{formatDate(h.at)}</div>
+                <div className="font-medium">{STATUS_LABELS[h.status]}</div>
+                <p className="text-muted-foreground">{h.comment}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        {admin && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Действия администрации</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <textarea
+                className="min-h-16 w-full rounded-md border border-white/10 bg-black/30 px-3 py-2 text-sm"
+                placeholder="Комментарий к смене статуса"
+                value={statusComment}
+                onChange={(e) => setStatusComment(e.target.value)}
+              />
+              <div className="flex flex-wrap gap-2">
+                {NEXT.map((st) => (
+                  <Button
+                    key={st}
+                    size="sm"
+                    variant="outline"
+                    disabled={st === "rejected" && !statusComment.trim()}
+                    onClick={() => {
+                      changeStatus(
+                        item.id,
+                        st,
+                        statusComment || `Статус: ${STATUS_LABELS[st]}`,
+                        st === "done"
+                      );
+                      setStatusComment("");
+                    }}
+                  >
+                    {STATUS_LABELS[st]}
+                  </Button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}

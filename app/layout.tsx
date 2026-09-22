@@ -7,9 +7,9 @@ import "leaflet/dist/leaflet.css";
 const inter = Inter({ subsets: ["latin", "cyrillic"] });
 
 export const metadata: Metadata = {
-  title: "Urban AI — Collaborative City Planning | Taganrog",
+  title: "Точка роста / T-Сити — участие граждан в благоустройстве",
   description:
-    "AI-powered planning sandbox for Taganrog: click the map, co-design the city in 3D.",
+    "Платформа территориально-контекстного участия: карта инициатив, ИИ-помощник, 3D-студия двора и кабинет администрации. Пилот — Таганрог.",
 };
 
 export default function RootLayout({

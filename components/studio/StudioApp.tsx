@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Building2,
@@ -10,6 +11,7 @@ import {
   Map as MapIcon,
   PanelRight,
   Pin,
+  ArrowLeft,
 } from "lucide-react";
 import { PANEL_LABELS, useStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
@@ -53,21 +55,28 @@ function FloatingHeader() {
   return (
     <FloatingPanel
       id="header"
-      title="Urban AI"
+      title="3D-студия"
       compact
       className="absolute left-3 right-3 top-3 z-30"
       bodyClassName="flex items-center justify-between gap-3 px-3 py-2 pr-16"
     >
       <div className="flex items-center gap-3">
+        <Link
+          href="/"
+          className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.06] text-muted-foreground hover:text-foreground"
+          title="На платформу"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20 ring-1 ring-emerald-400/40">
           <Building2 className="h-4 w-4 text-emerald-400" />
         </div>
         <div>
           <h1 className="text-sm font-bold tracking-wide">
-            Urban <span className="text-emerald-400 text-glow">AI</span>
+            Точка <span className="text-emerald-400 text-glow">роста</span>
           </h1>
           <p className="text-[10px] text-muted-foreground">
-            Совместное планирование · Таганрог
+            3D-студия благоустройства · Таганрог
           </p>
         </div>
       </div>
@@ -173,7 +182,7 @@ function HiddenPanelsDock() {
   );
 }
 
-export default function Home() {
+export default function StudioApp() {
   const mapHidden = useStore((s) => s.mapHidden);
   const catalogVisible = usePanelVisible("catalog");
 

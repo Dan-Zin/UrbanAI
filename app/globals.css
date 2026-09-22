@@ -28,7 +28,7 @@
 
   html,
   body {
-    @apply h-full overflow-hidden bg-background text-foreground antialiased;
+    @apply min-h-full bg-background text-foreground antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
@@ -76,6 +76,11 @@
 }
 
 /* Leaflet chrome adjustments for dark glass theme */
+.tocity-marker {
+  background: transparent;
+  border: 0;
+}
+
 .leaflet-container {
   background: #0a0f0d;
   font-family: inherit;

@@ -1,70 +1,64 @@
-# Urban AI — Collaborative City Planning (Taganrog MVP)
+# Точка роста / T-Сити
 
-Click a point on the 2D map of Taganrog and a 40×40 m **3D Planning Sandbox** opens
-for that spot, wired to four AI pillars. All OSM buildings in the loaded radius
-are extruded into the scene.
+Рабочий веб-MVP платформы территориально-контекстного участия граждан в благоустройстве. Пилот — **г. Таганрог**.
 
-## Quick start
+Проект собран из паспорта и ТЗ «Точка роста» (конкурс молодёжных бизнес-проектов / студенческий стартап) и блока 3D-визуализации Urban AI: карта города, заявки, ИИ-помощник, кабинет администрации и 3D-студия двора в одном приложении.
+
+## Что умеет демо
+
+- Карта инициатив Таганрога: статусы, районы, тепловая заливка, фильтры.
+- Подача заявки: точка на карте, адрес и район определяются автоматически, ИИ предлагает категорию / формулировку / приоритет, показывает похожие заявки.
+- Карточка заявки: статусы, голоса, комментарии, срок, маршрутизация «район + категория».
+- **3D-студия** (`/studio`): клик по карте → площадка 40×40 м, OSM-окружение, каталог МАФ, генерация объекта, смета, тени, сценарии A/B. Эскиз можно прикрепить к заявке.
+- Геймификация: баллы, уровни, достижения, рейтинги граждан и районов.
+- Сообщества и «Городские диалоги» (демо-контур встреч).
+- Портал администрации: список, просрочки, тепловая карта, смена статусов.
+- Переключатель ролей: житель / сотрудник / руководитель — без регистрации.
+
+Ключи API не обязательны: ИИ и карта работают в mock-режиме.
+
+## Запуск
 
 ```bash
+cd C:\Users\Danii\OneDrive\Desktop\Projects\TochkaRosta
 npm install
 npm run dev
 ```
 
-Open http://localhost:3000. **No API keys are required** — every service runs in
-Mock Mode by default (including an offline procedural basemap of Taganrog).
+Откройте http://localhost:3000.
 
-## Going live
+Опционально скопируйте `.env.local.example` → `.env.local` и добавьте ключи Mapbox / OpenRouter / xAI / Fal — тогда 3D-студия ходит в живые сервисы.
 
-Copy `.env.local.example` to `.env.local` and add any of:
+## Маршруты
 
-| Key | Service | Powers |
-| --- | --- | --- |
-| `NEXT_PUBLIC_MAPBOX_TOKEN` | Mapbox GL JS | Optional — without it the map runs on free Leaflet + CARTO dark raster tiles |
-| `NEXT_PUBLIC_OPENROUTER_API_KEY` | OpenRouter | Community Sentiment NLP |
-| `NEXT_PUBLIC_FAL_API_KEY` | Fal.ai (FLUX) | "Visualize" image renders |
-| `NEXT_PUBLIC_TRIPO_API_KEY` | Tripo AI | Text-to-3D assets (placeholder) |
-| `XAI_API_KEY` | xAI / SpaceXAI | Catalog objects from text or photo (server-side) |
+| Путь | Экран |
+|------|--------|
+| `/` | Лендинг продукта |
+| `/map` | Карта инициатив |
+| `/initiatives/new` | Подача заявки |
+| `/initiatives/[id]` | Карточка |
+| `/studio` | 3D-студия благоустройства |
+| `/profile` | Профиль и баллы |
+| `/rating` | Рейтинги |
+| `/community` | Сообщества |
+| `/dialogs` | Городские диалоги |
+| `/admin` | Портал администрации |
 
-## Architecture
+Студия принимает `?lng=&lat=&initiative=` — так заявка открывается на той же точке.
 
-- `lib/store.ts` — Zustand store syncing map clicks → 3D scene, placed objects,
-  cost, sentiment and compliance state.
-- `components/MapComponent.tsx` — basemap with graceful degradation
-  (Mapbox GL if token → free Leaflet + CARTO dark raster tiles → offline canvas),
-  emits the Sync event on click.
-- `components/Scene3D.tsx` — React Three Fiber viewport: 40×40 m grid, real
-  OSM surroundings, placeable objects with TransformControls,
-  Environment / ContactShadows / OrbitControls.
-- `services/osm.ts` + `components/scene/Surroundings.tsx` — real city context:
-  building footprints, roads, trees and parks fetched from OpenStreetMap
-  (Overpass; VK/mail.ru mirror first — it is the reliable one from Russian
-  networks) and extruded into 3D with height data and window-lit facades.
-  Falls back to procedural blocks if every mirror is unreachable.
-- `services/ai.ts` — all AI calls with automatic Mock Mode fallback.
-- `components/panels/` — the four pillars: Sentiment (NLP), Visualize
-  (generative design), Cost Estimator, Compliance safety check.
+## Стек
 
-## Urban-planning toolkit (ArcGIS-Urban-style)
+Next.js 14 · React · TypeScript · Tailwind · Zustand · Leaflet / Mapbox · React Three Fiber · OSM Overpass.
 
-- **Sun & shadow analysis** — time-of-day slider drives real solar position
-  for Taganrog's latitude; shadows, sky, window glow and street lamps react.
-- **Land-use zoning** — colour-coded OSM landuse overlays with a legend
-  (residential / commercial / industrial / retail / education) and a toggle.
-- **Parametric development blocks** — place a 6×8 m volume, set floors (1–25)
-  and use (residential / commercial / mixed); cost and label update live.
-- **Capacity metrics** — GFA, estimated residents, jobs, investment and site
-  FAR per scenario, plus surrounding-context totals from real OSM buildings.
-- **Scenario A/B** — two independent design alternatives with side-by-side
-  metric columns; switch from the header or the Capacity panel.
+Клиентское состояние демо хранится в `localStorage` (`tochka-rosta-demo-v1`). Кнопка «Сбросить демо-данные» в админке возвращает сиды.
 
-## The four pillars
+## Соответствие ТЗ (этап 1)
 
-1. **NLP Analysis** — every map click triggers sentiment categorization
-   (Park, Road repair, Transit, …) with a request breakdown.
-2. **Generative Design** — "Visualize" turns the current 3D scene into an
-   AI render prompt and displays the result.
-3. **Estimator AI** — live cost card; Tree $200, Bench $500, Lamp $350,
-   Fountain $4,200, updates as you add/remove/select objects.
-4. **Compliance AI** — status light re-checks mock GIS layers (underground
-   utilities, water mains, heritage zone, gas) on every scene change.
+Реализовано в демо: карта и статусы, подача, ИИ-помощник, 3D-редактор объектов, раскраска районов, баллы/уровни, ЛК, кабинет администрации, маршрутизация, тепловая карта.
+
+Не в этом репозитории (следующий контур): нативное Android-приложение, PostgreSQL/PostGIS, ЕСИА, self-hosted Jitsi, Kandinsky inpainting, Docker-поставка заказчику.
+
+## Источники
+
+Документация продукта: `C:\Users\Danii\OneDrive\Desktop\data 1806\проект данзин`  
+Исходный блок визуализации: `C:\Users\Danii\OneDrive\Desktop\Projects\Urban3D`
