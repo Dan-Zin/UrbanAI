@@ -10,6 +10,7 @@ import {
   type Category,
   type Community,
   type Initiative,
+  type InitiativeIntent,
   type InitiativeStatus,
   type Meeting,
   type Priority,
@@ -17,6 +18,9 @@ import {
   type User,
   type Visualization,
 } from "./domain";
+import type { SiteView } from "./views";
+import { classifyIntent } from "./views";
+import { upsertView } from "@/services/views";
 import { DISTRICTS, USERS, INITIATIVES, COMMUNITIES, MEETINGS, DEMO_USER_ID } from "./seed";
 import { addDays, findDistrict, reverseGeocode, routeAssignee } from "./geo";
 import { unlockedAchievements } from "./gamification";
@@ -30,6 +34,7 @@ interface CreateDraft {
   lng: number;
   lat: number;
   visualization?: Visualization;
+  intent?: InitiativeIntent;
 }
 
 interface PlatformState {
@@ -37,6 +42,7 @@ interface PlatformState {
   initiatives: Initiative[];
   communities: Community[];
   meetings: Meeting[];
+  views: SiteView[];
   currentUserId: string;
   roleView: RoleView;
   setRoleView: (role: RoleView) => void;
@@ -47,6 +53,7 @@ interface PlatformState {
   commentInitiative: (id: string, text: string) => void;
   changeStatus: (id: string, status: InitiativeStatus, comment: string, photoAfter?: boolean) => void;
   attachVisualization: (id: string, viz: Visualization) => void;
+  saveView: (view: SiteView) => void;
   joinMeeting: (id: string) => void;
   createMeeting: (payload: Omit<Meeting, "id" | "participants" | "hostId">) => Meeting;
   resetDemo: () => void;
@@ -73,6 +80,7 @@ function initial() {
     initiatives: INITIATIVES,
     communities: COMMUNITIES,
     meetings: MEETINGS,
+    views: [] as SiteView[],
     currentUserId: DEMO_USER_ID,
     roleView: "citizen" as RoleView,
   };
@@ -123,6 +131,7 @@ export const usePlatform = create<PlatformState>()(
             },
           ],
           visualization: draft.visualization,
+          intent: draft.intent ?? classifyIntent(draft.title, draft.description),
           createdAt: now,
           dueAt: addDays(now, CATEGORY_SLA_DAYS[category]),
         };
@@ -187,6 +196,7 @@ export const usePlatform = create<PlatformState>()(
           users = syncAchievements(users, initiatives);
           return { initiatives, users };
         }),
+      saveView: (view) => set((s) => ({ views: upsertView(s.views, view) })),
       attachVisualization: (id, visualization) =>
         set((s) => {
           const initiatives = s.initiatives.map((i) =>
@@ -217,7 +227,7 @@ export const usePlatform = create<PlatformState>()(
       },
       resetDemo: () => set(initial()),
     }),
-    { name: "tochka-rosta-demo-v1" }
+    { name: "tochka-rosta-demo-v2" }
   )
 );
 

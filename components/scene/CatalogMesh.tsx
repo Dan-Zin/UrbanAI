@@ -106,19 +106,36 @@ function Part({ part }: { part: MeshPart }) {
   );
 }
 
-export default function CatalogMesh({ mesh }: { mesh: GeneratedMesh }) {
+function fade(opacity: number | undefined, ghost: boolean) {
+  return ghost ? Math.min(opacity ?? 1, 0.42) : opacity;
+}
+
+export default function CatalogMesh({
+  mesh,
+  ghost = false,
+}: {
+  mesh: GeneratedMesh;
+  ghost?: boolean;
+}) {
   if (mesh.parts?.length) {
     return (
       <group>
         {mesh.parts.map((part, i) => (
-          <Part key={i} part={part} />
+          <Part
+            key={i}
+            part={{
+              ...part,
+              opacity: fade(part.opacity, ghost),
+              emissive: ghost ? "#34d399" : part.emissive,
+              emissiveIntensity: ghost ? 0.35 : part.emissiveIntensity,
+            }}
+          />
         ))}
       </group>
     );
   }
 
-  const primitive: MeshPrimitive =
-    mesh.primitive === "group" ? "box" : mesh.primitive;
+  const primitive: MeshPrimitive = mesh.primitive === "group" ? "box" : mesh.primitive;
   return (
     <group position={[0, mesh.size[1] / 2, 0]}>
       <Primitive
@@ -128,6 +145,9 @@ export default function CatalogMesh({ mesh }: { mesh: GeneratedMesh }) {
           size: mesh.size,
           roughness: 0.58,
           metalness: 0.1,
+          opacity: ghost ? 0.42 : 1,
+          emissive: ghost ? "#34d399" : undefined,
+          emissiveIntensity: ghost ? 0.35 : 0,
         }}
       />
     </group>

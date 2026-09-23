@@ -51,6 +51,8 @@ export interface PlacedObject {
   use?: BlockUse;
   catalogId?: string;
   mesh?: GeneratedMesh;
+  /** Translucent MAF brought in from a natural-view sketch. Not a measured placement. */
+  sketch?: boolean;
 }
 
 export interface Building {
@@ -148,6 +150,8 @@ interface UrbanState {
   addObject: (kind: Exclude<ObjectKind, "ai" | "catalog">) => void;
   addAIObject: (label: string, price: number, mesh?: GeneratedMesh) => void;
   addFromCatalog: (catalogId: string) => void;
+  addSketchObject: (object: Omit<PlacedObject, "id">) => void;
+  clearSketches: () => void;
   removeObject: (id: string) => void;
   setActiveObject: (id: string | null) => void;
   moveObject: (id: string, position: [number, number, number]) => void;
@@ -164,11 +168,12 @@ interface UrbanState {
   /** Real satellite orthophoto on the ground + real roofs. */
   showSatellite: boolean;
   toggleSatellite: () => void;
-  /** Run NN super-resolution on the stitched orthophoto before draping. */
+  /** Run an image model on the stitched orthophoto before draping. */
   enhanceSatellite: boolean;
   toggleEnhanceSatellite: () => void;
   satelliteStatus: "idle" | "loading" | "enhancing" | "ready" | "failed";
-  setSatelliteStatus: (s: UrbanState["satelliteStatus"]) => void;
+  satelliteDetail: string;
+  setSatelliteStatus: (s: UrbanState["satelliteStatus"], detail?: string) => void;
 
   mapHidden: boolean;
   mapStyle: MapStyleId;
@@ -318,6 +323,21 @@ export const useStore = create<UrbanState>((set, get) => ({
       };
     });
   },
+  addSketchObject: (object) => {
+    const id = `sketch-${++objectCounter}`;
+    set((s) => {
+      const objects = [...s.objects, { ...object, id, sketch: true }];
+      return {
+        objects,
+        scenarios: { ...s.scenarios, [s.scenario]: objects },
+      };
+    });
+  },
+  clearSketches: () =>
+    set((s) => {
+      const objects = s.objects.filter((o) => !o.sketch);
+      return { objects, scenarios: { ...s.scenarios, [s.scenario]: objects } };
+    }),
   addFromCatalog: (catalogId) => {
     const item = get().catalog.find((c) => c.id === catalogId);
     if (!item) return;
@@ -391,7 +411,9 @@ export const useStore = create<UrbanState>((set, get) => ({
   toggleEnhanceSatellite: () =>
     set((s) => ({ enhanceSatellite: !s.enhanceSatellite })),
   satelliteStatus: "idle",
-  setSatelliteStatus: (satelliteStatus) => set({ satelliteStatus }),
+  satelliteDetail: "",
+  setSatelliteStatus: (satelliteStatus, satelliteDetail = "") =>
+    set({ satelliteStatus, satelliteDetail }),
 
   mapHidden: false,
   mapStyle: "schematic",

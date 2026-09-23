@@ -11,6 +11,9 @@ import { CATEGORY_LABELS, STATUS_LABELS, type InitiativeStatus } from "@/lib/dom
 import { DISTRICTS } from "@/lib/seed";
 import { formatDate } from "@/lib/format";
 import { isOverdue } from "@/lib/geo";
+import { allowsNaturalView, OBJECT_TYPE_LABELS, SKETCH_DISCLAIMER } from "@/lib/views";
+import { viewsForInitiative } from "@/services/views";
+import ViewStatusBadge from "@/components/views/ViewStatusBadge";
 
 const NEXT: InitiativeStatus[] = ["review", "in_progress", "done", "rejected"];
 
@@ -23,6 +26,7 @@ export default function InitiativePage() {
   const voteInitiative = usePlatform((s) => s.voteInitiative);
   const commentInitiative = usePlatform((s) => s.commentInitiative);
   const changeStatus = usePlatform((s) => s.changeStatus);
+  const views = usePlatform((s) => s.views);
   const [text, setText] = useState("");
   const [statusComment, setStatusComment] = useState("");
 
@@ -35,6 +39,8 @@ export default function InitiativePage() {
   const voted = item.votes.includes(currentUserId);
   const admin = roleView !== "citizen";
   const overdue = isOverdue(item);
+  const proposal = allowsNaturalView(item);
+  const siteViews = viewsForInitiative(views, item.id);
 
   return (
     <div className="mx-auto grid max-w-5xl gap-6 px-4 py-8 lg:grid-cols-[1.2fr_0.8fr]">
@@ -143,6 +149,74 @@ export default function InitiativePage() {
                 </Button>
               </Link>
             )}
+            {proposal ? (
+              <Link href={`/views/new?initiative=${item.id}&lng=${item.lng}&lat=${item.lat}`}>
+                <Button className="w-full" variant="outline">
+                  Натурный вид
+                </Button>
+              </Link>
+            ) : (
+              <div className="space-y-1">
+                <Button className="w-full" variant="outline" disabled>
+                  Натурный вид
+                </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  Оперативный дефект: только фото и классификация. Перерисовка двора отключена.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Натурные виды</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {siteViews.length === 0 && (
+              <p className="text-muted-foreground">Кадры места хранятся только в этой заявке.</p>
+            )}
+            {siteViews.map((view) => (
+              <div key={view.id} className="space-y-2 rounded-md border border-white/10 p-2">
+                <img
+                  src={view.resultImageDataUrl || view.imageDataUrl}
+                  alt="Кадр натурного вида"
+                  className="max-h-40 w-full rounded object-cover"
+                />
+                <div className="flex items-center gap-2">
+                  <ViewStatusBadge status={view.status} />
+                  <span className="text-[11px] text-muted-foreground">{SKETCH_DISCLAIMER}</span>
+                </div>
+                {view.objects.length === 0 ? (
+                  <p className="text-[11px] text-muted-foreground">Объектов эскиза нет</p>
+                ) : (
+                  <ul className="space-y-1 text-[11px] text-muted-foreground">
+                    {view.objects.map((object) => (
+                      <li key={object.id}>
+                        {OBJECT_TYPE_LABELS[object.type]} · {object.status}
+                        {object.placedWithGeometry ? "" : " · без привязки к плоскости"}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href={`/studio?lng=${item.lng}&lat=${item.lat}&initiative=${item.id}&view=${view.id}`}
+                  >
+                    <Button size="sm" variant="outline">
+                      Открыть в студии
+                    </Button>
+                  </Link>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => commentInitiative(item.id, "Житель подтвердил этот эскиз")}
+                  >
+                    Житель подтвердил этот эскиз
+                  </Button>
+                </div>
+              </div>
+            ))}
           </CardContent>
         </Card>
 

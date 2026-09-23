@@ -177,11 +177,21 @@ function svgThumb(body: string, bg = "#0f1c18"): string {
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
-export const BUILTIN_CATALOG: CatalogItem[] = [
+export const MAF_SIZES: Record<string, { w: number; d: number; h: number }> = {
+  "maf-bench": { w: 1.6, d: 0.58, h: 0.85 },
+  "maf-bin": { w: 0.4, d: 0.4, h: 0.7 },
+  "maf-lamp": { w: 0.45, d: 0.45, h: 3.4 },
+  "maf-paving": { w: 2, d: 2, h: 0.08 },
+  "maf-tree": { w: 1.4, d: 1.4, h: 3.2 },
+  "maf-pocket": { w: 2.5, d: 5, h: 0.12 },
+};
+
+/** Street furniture shared by the 3D studio and the natural-view editor. */
+export const DEFAULT_MAF_CATALOG: CatalogItem[] = [
   {
-    id: "builtin-tree",
+    id: "maf-tree",
     label: "Дерево",
-    description: "Лиственное дерево для озеленения двора",
+    description: "Местная зелень для двора",
     price: 200,
     source: "builtin",
     builtinKind: "tree",
@@ -190,11 +200,21 @@ export const BUILTIN_CATALOG: CatalogItem[] = [
        <circle cx="40" cy="34" r="16" fill="#15803d"/>
        <circle cx="50" cy="30" r="10" fill="#22a34a"/>`
     ),
+    mesh: {
+      primitive: "group",
+      color: "#15803d",
+      size: [1.4, 3.2, 1.4],
+      parts: [
+        { primitive: "cylinder", color: "#5b3a1e", position: [0, 0.55, 0], size: [0.22, 1.1, 0.22] },
+        { primitive: "sphere", color: "#15803d", position: [0, 1.9, 0], size: [1.4, 1.4, 1.4] },
+        { primitive: "sphere", color: "#22a34a", position: [0.35, 2.4, 0.15], size: [0.9, 0.9, 0.9] },
+      ],
+    },
   },
   {
-    id: "builtin-bench",
+    id: "maf-bench",
     label: "Скамейка",
-    description: "Садовая скамейка со спинкой",
+    description: "Обычная дворовая скамейка со спинкой",
     price: 500,
     source: "builtin",
     builtinKind: "bench",
@@ -204,11 +224,22 @@ export const BUILTIN_CATALOG: CatalogItem[] = [
        <rect x="18" y="50" width="6" height="12" fill="#334155"/>
        <rect x="56" y="50" width="6" height="12" fill="#334155"/>`
     ),
+    mesh: {
+      primitive: "group",
+      color: "#8a5a2b",
+      size: [1.6, 0.85, 0.58],
+      parts: [
+        { primitive: "box", color: "#3f4a55", position: [-0.72, 0.18, 0], size: [0.07, 0.36, 0.5] },
+        { primitive: "box", color: "#3f4a55", position: [0.72, 0.18, 0], size: [0.07, 0.36, 0.5] },
+        { primitive: "box", color: "#8a5a2b", position: [0, 0.4, 0.05], size: [1.55, 0.06, 0.42] },
+        { primitive: "box", color: "#7a4e28", position: [0, 0.72, -0.18], size: [1.55, 0.4, 0.06] },
+      ],
+    },
   },
   {
-    id: "builtin-lamp",
+    id: "maf-lamp",
     label: "Фонарь",
-    description: "Уличный фонарь с тёплым светом",
+    description: "Дворовой светильник",
     price: 350,
     source: "builtin",
     builtinKind: "lamp",
@@ -216,7 +247,70 @@ export const BUILTIN_CATALOG: CatalogItem[] = [
       `<rect x="37" y="28" width="6" height="36" rx="2" fill="#334155"/>
        <circle cx="40" cy="24" r="8" fill="#fde68a"/>`
     ),
+    mesh: {
+      primitive: "group",
+      color: "#334155",
+      size: [0.45, 3.4, 0.45],
+      parts: [
+        { primitive: "cylinder", color: "#3b4450", position: [0, 1.5, 0], size: [0.1, 3, 0.1] },
+        { primitive: "sphere", color: "#ffe7a8", position: [0, 3.15, 0], size: [0.28, 0.28, 0.28] },
+      ],
+    },
   },
+  {
+    id: "maf-bin",
+    label: "Урна",
+    description: "Дворовая урна",
+    price: 180,
+    source: "builtin",
+    thumbnail: svgThumb(
+      `<rect x="30" y="28" width="20" height="32" rx="3" fill="#3c4a3e"/>
+       <rect x="28" y="24" width="24" height="6" rx="2" fill="#1f2937"/>`
+    ),
+    mesh: {
+      primitive: "cylinder",
+      color: "#3c4a3e",
+      size: [0.4, 0.7, 0.4],
+    },
+  },
+  {
+    id: "maf-paving",
+    label: "Бетонная плитка",
+    description: "Фрагмент покрытия, 2×2 м",
+    price: 90,
+    source: "builtin",
+    thumbnail: svgThumb(
+      `<rect x="18" y="22" width="18" height="14" fill="#9ca3af"/>
+       <rect x="38" y="22" width="18" height="14" fill="#6b7280"/>
+       <rect x="18" y="38" width="18" height="14" fill="#6b7280"/>
+       <rect x="38" y="38" width="18" height="14" fill="#9ca3af"/>`
+    ),
+    mesh: {
+      primitive: "box",
+      color: "#9ca3af",
+      size: [2, 0.08, 2],
+    },
+  },
+  {
+    id: "maf-pocket",
+    label: "Парковочный карман",
+    description: "Карман вдоль проезда, 2.5×5 м",
+    price: 0,
+    source: "builtin",
+    thumbnail: svgThumb(
+      `<rect x="16" y="28" width="48" height="28" rx="4" fill="#334155"/>
+       <rect x="22" y="36" width="14" height="12" fill="#94a3b8"/>`
+    ),
+    mesh: {
+      primitive: "box",
+      color: "#334155",
+      size: [2.5, 0.12, 5],
+    },
+  },
+];
+
+export const BUILTIN_CATALOG: CatalogItem[] = [
+  ...DEFAULT_MAF_CATALOG,
   {
     id: "builtin-fountain",
     label: "Фонтан",

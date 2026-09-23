@@ -89,9 +89,13 @@ export default function CityMap({
         const latlngs = d.polygon.map(([lng, lat]) => [lat, lng] as [number, number]);
         L.polygon(latlngs, {
           color: districtColor(score.color),
-          weight: 1,
+          weight: 3,
+          opacity: 1,
+          lineJoin: "round",
+          lineCap: "round",
           fillColor: districtColor(score.color),
-          fillOpacity: mode === "admin" ? 0.28 : 0.12,
+          fillOpacity: mode === "admin" ? 0.2 : 0.08,
+          smoothFactor: 1.15,
         })
           .bindTooltip(
             `${d.name}: ${Math.round(score.resolvedShare * 100)}% решено`,

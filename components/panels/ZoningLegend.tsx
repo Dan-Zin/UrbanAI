@@ -24,6 +24,7 @@ export default function ZoningLegend() {
   const enhanceSatellite = useStore((s) => s.enhanceSatellite);
   const toggleEnhanceSatellite = useStore((s) => s.toggleEnhanceSatellite);
   const satelliteStatus = useStore((s) => s.satelliteStatus);
+  const satelliteDetail = useStore((s) => s.satelliteDetail);
 
   if (!surroundings) return null;
   const kinds = Array.from(new Set(surroundings.areas.map((a) => a.kind)));
@@ -81,18 +82,15 @@ export default function ZoningLegend() {
             )}
           </button>
           <div className="mt-1 border-t border-white/10 pt-1 text-[8px] text-muted-foreground/70">
-            {satelliteStatus === "loading" && "Собираю 4K-тайлы (z20/z19)…"}
+            {satelliteStatus === "loading" && (satelliteDetail || "Собираю снимок…")}
             {satelliteStatus === "enhancing" && (
               <span className="flex items-center gap-1">
                 <LoaderCircle className="h-3 w-3 animate-spin" />
-                Масштабирую подложку до 4096…
+                {satelliteDetail || "Нейросеть улучшает подложку…"}
               </span>
             )}
-            {satelliteStatus === "ready" &&
-              (enhanceSatellite
-                ? "Подложка 4K (4096), без mipmap"
-                : "Спутник без 4K-масштаба")}
-            {satelliteStatus === "failed" && "Снимок не загрузился"}
+            {satelliteStatus === "ready" && (satelliteDetail || "Спутник готов")}
+            {satelliteStatus === "failed" && (satelliteDetail || "Снимок не загрузился")}
             {satelliteStatus === "idle" && "Спутник через локальный прокси"}
           </div>
         </>

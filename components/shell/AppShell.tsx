@@ -52,10 +52,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <Building2 className="h-4 w-4 text-emerald-400" />
             </div>
             <div className="leading-tight">
-              <div className="text-sm font-bold tracking-wide">
-                Точка <span className="text-emerald-400 text-glow">роста</span>
-              </div>
-              <div className="text-[10px] text-muted-foreground">T-Сити · Таганрог</div>
+              <div className="text-sm font-bold tracking-wide">Таганрог</div>
+              <div className="text-[10px] text-muted-foreground">Благоустройство</div>
             </div>
           </Link>
 

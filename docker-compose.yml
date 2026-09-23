@@ -1,0 +1,25 @@
+# Ключи из .env.local попадают и в сборку (NEXT_PUBLIC_*), и в запущенный контейнер.
+# docker compose up --build -d
+# http://localhost:3000
+services:
+  tochka:
+    image: tochka-rosta
+    build:
+      context: .
+      secrets:
+        - envlocal
+      args:
+        NEXT_PUBLIC_MAPBOX_TOKEN: ${NEXT_PUBLIC_MAPBOX_TOKEN:-}
+        NEXT_PUBLIC_OPENROUTER_API_KEY: ${NEXT_PUBLIC_OPENROUTER_API_KEY:-}
+        NEXT_PUBLIC_FAL_API_KEY: ${NEXT_PUBLIC_FAL_API_KEY:-}
+        NEXT_PUBLIC_TRIPO_API_KEY: ${NEXT_PUBLIC_TRIPO_API_KEY:-}
+        NEXT_PUBLIC_MAPILLARY_TOKEN: ${NEXT_PUBLIC_MAPILLARY_TOKEN:-}
+    env_file:
+      - .env.local
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+secrets:
+  envlocal:
+    file: .env.local

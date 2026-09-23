@@ -1,79 +1,6 @@
-import type {
-  Community,
-  District,
-  Initiative,
-  Meeting,
-  User,
-} from "./domain";
+import type { Community, Initiative, Meeting, User } from "./domain";
 
-export const DISTRICTS: District[] = [
-  {
-    id: "central",
-    name: "Центральный",
-    center: [38.928, 47.216],
-    polygon: [
-      [38.91, 47.21],
-      [38.95, 47.21],
-      [38.95, 47.226],
-      [38.91, 47.226],
-    ],
-  },
-  {
-    id: "primorsky",
-    name: "Приморский",
-    center: [38.938, 47.206],
-    polygon: [
-      [38.91, 47.195],
-      [38.97, 47.195],
-      [38.97, 47.211],
-      [38.91, 47.211],
-    ],
-  },
-  {
-    id: "western",
-    name: "Западный",
-    center: [38.888, 47.222],
-    polygon: [
-      [38.84, 47.205],
-      [38.91, 47.205],
-      [38.91, 47.24],
-      [38.84, 47.24],
-    ],
-  },
-  {
-    id: "northern",
-    name: "Северный",
-    center: [38.905, 47.245],
-    polygon: [
-      [38.86, 47.226],
-      [38.94, 47.226],
-      [38.94, 47.275],
-      [38.86, 47.275],
-    ],
-  },
-  {
-    id: "solar",
-    name: "Солнечный",
-    center: [38.958, 47.218],
-    polygon: [
-      [38.95, 47.205],
-      [38.99, 47.205],
-      [38.99, 47.235],
-      [38.95, 47.235],
-    ],
-  },
-  {
-    id: "mikhailovka",
-    name: "Михайловка",
-    center: [38.962, 47.248],
-    polygon: [
-      [38.94, 47.235],
-      [38.995, 47.235],
-      [38.995, 47.275],
-      [38.94, 47.275],
-    ],
-  },
-];
+export { DISTRICTS } from "./districts";
 
 export const USERS: User[] = [
   {
@@ -386,17 +313,17 @@ export const INITIATIVES: Initiative[] = [
   },
   {
     id: "in-09",
-    title: "Клумбы у дома на Ломоносова",
+    title: "Клумбы у дома на Солнечной",
     description: "Хотим клумбы вместо вытоптанного газона.",
     reformulated:
-      "Во дворе дома на ул. Ломоносова предлагается устройство клумб на месте вытоптанного газона.",
+      "Во дворе дома на ул. Солнечной предлагается устройство клумб на месте вытоптанного газона.",
     category: "green",
     categoryConfidence: 0.84,
     priority: "standard",
     status: "review",
-    lng: 38.9526,
-    lat: 47.2249,
-    address: "ул. Ломоносова, д. 44",
+    lng: 38.9425,
+    lat: 47.2608,
+    address: "ул. Солнечная, д. 9",
     districtId: "solar",
     authorId: "u-danzin",
     assignee: "Солнечный · Зелёные насаждения",
@@ -486,9 +413,9 @@ export const INITIATIVES: Initiative[] = [
     categoryConfidence: 0.87,
     priority: "standard",
     status: "new",
-    lng: 38.9622,
-    lat: 47.2478,
-    address: "ул. Ломоносова, д. 102",
+    lng: 38.9444,
+    lat: 47.2678,
+    address: "ул. Михайловская, д. 18",
     districtId: "mikhailovka",
     authorId: "u-maria",
     assignee: "Михайловка · Детские площадки",

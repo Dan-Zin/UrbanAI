@@ -17,6 +17,9 @@ export type Category =
 
 export type Priority = "urgent" | "high" | "standard";
 
+/** Оперативный дефект или замысел благоустройства. Старые заявки могут не хранить поле. */
+export type InitiativeIntent = "defect" | "proposal";
+
 export type Role =
   | "citizen"
   | "admin_staff"
@@ -133,6 +136,7 @@ export interface Initiative {
   reformulated?: string;
   category: Category;
   categoryConfidence: number;
+  intent?: InitiativeIntent;
   priority: Priority;
   status: InitiativeStatus;
   lng: number;

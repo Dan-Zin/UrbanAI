@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { seededRandom } from "@/lib/utils";
 import { useStore } from "@/lib/store";
@@ -931,10 +931,15 @@ function RealBuilding({
       : null;
     // Flat roofs get their REAL roof from the satellite orthophoto;
     // gabled roofs stay geometric (slopes aren't visible in an orthophoto)
+    const detail = imagery?.detail;
+    const detailHalf = detail ? detail.size * 0.46 : 0;
+    const roofOnDetail =
+      !!detail &&
+      building.footprint.every(([x, z]) => Math.abs(x) <= detailHalf && Math.abs(z) <= detailHalf);
     let roofMat: THREE.MeshStandardMaterial | THREE.MeshBasicMaterial;
     if (imagery && !gableGeo) {
-      const roofTex = imagery.texture.clone();
-      applyGroundMapping(roofTex, imagery.size);
+      const roofTex = (roofOnDetail ? detail!.texture : imagery.texture).clone();
+      applyGroundMapping(roofTex, roofOnDetail ? detail!.size : imagery.size);
       roofTex.needsUpdate = true;
       roofMat = new THREE.MeshBasicMaterial({
         map: roofTex,
@@ -977,6 +982,8 @@ function RealBuilding({
     analysis,
     imagery?.texture,
     imagery?.size,
+    imagery?.detail?.texture,
+    imagery?.detail?.size,
   ]);
 
   return (
@@ -1422,35 +1429,60 @@ function StreetTree({ tree }: { tree: OsmTree }) {
 
 /* ------------------------------------------------------------------ */
 
-/** Real orthophoto draped over the ground around the selected point. */
+function groundQuad(meters: number) {
+  const h = meters / 2;
+  // same (x, -z) shape-coordinate convention as roofs -> shared mapping
+  const shape = new THREE.Shape([
+    new THREE.Vector2(-h, -h),
+    new THREE.Vector2(h, -h),
+    new THREE.Vector2(h, h),
+    new THREE.Vector2(-h, h),
+  ]);
+  return new THREE.ShapeGeometry(shape);
+}
+
+/** Wide orthophoto, plus a sharper center patch when resolution enhancement is on. */
 function SatelliteGround({ imagery }: { imagery: GroundImagery }) {
-  const geometry = useMemo(() => {
-    const h = imagery.size / 2;
-    // same (x, -z) shape-coordinate convention as roofs -> shared mapping
-    const shape = new THREE.Shape([
-      new THREE.Vector2(-h, -h),
-      new THREE.Vector2(h, -h),
-      new THREE.Vector2(h, h),
-      new THREE.Vector2(-h, h),
-    ]);
-    return new THREE.ShapeGeometry(shape);
-  }, [imagery.size]);
+  const wide = useMemo(() => groundQuad(imagery.size), [imagery.size]);
+  const detailGeo = useMemo(
+    () => (imagery.detail ? groundQuad(imagery.detail.size) : null),
+    [imagery.detail]
+  );
 
   return (
-    <mesh
-      geometry={geometry}
-      rotation={[-Math.PI / 2, 0, 0]}
-      position={[0, 0.02, 0]}
-      renderOrder={-1}
-    >
-      <meshBasicMaterial
-        map={imagery.texture}
-        depthWrite
-        polygonOffset
-        polygonOffsetFactor={1}
-        polygonOffsetUnits={1}
-      />
-    </mesh>
+    <group>
+      <mesh
+        geometry={wide}
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[0, 0.02, 0]}
+        renderOrder={-2}
+      >
+        <meshBasicMaterial
+          map={imagery.texture}
+          depthWrite
+          polygonOffset
+          polygonOffsetFactor={1}
+          polygonOffsetUnits={1}
+        />
+      </mesh>
+      {imagery.detail && detailGeo && (
+        <mesh
+          geometry={detailGeo}
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, 0.04, 0]}
+          renderOrder={-1}
+        >
+          <meshBasicMaterial
+            map={imagery.detail.texture}
+            transparent
+            depthWrite={false}
+            polygonOffset
+            polygonOffsetFactor={-2}
+            polygonOffsetUnits={-2}
+          />
+        </mesh>
+      )}
+    </group>
   );
 }
 
@@ -1468,43 +1500,88 @@ export default function SurroundingsView({ data }: { data: Surroundings }) {
 
   // Real satellite orthophoto for ground + roofs
   const [imagery, setImagery] = useState<GroundImagery | null>(null);
+  const [rawImagery, setRawImagery] = useState<GroundImagery | null>(null);
+  const detailTex = useRef<THREE.Texture | null>(null);
+  const showImagery = (next: GroundImagery | null) => {
+    const keep = next?.detail?.texture ?? null;
+    if (detailTex.current && detailTex.current !== keep) detailTex.current.dispose();
+    detailTex.current = keep;
+    setImagery(next);
+  };
   const enhanceSatellite = useStore((s) => s.enhanceSatellite);
   const setSatelliteStatus = useStore((s) => s.setSatelliteStatus);
   useEffect(() => {
     let stale = false;
     if (!selected) {
-      setImagery(null);
+      setRawImagery(null);
+      showImagery(null);
       setSatelliteStatus("idle");
       return;
     }
-    setSatelliteStatus("loading");
+    setRawImagery(null);
+    showImagery(null);
+    setSatelliteStatus("loading", "Собираю снимок…");
     (async () => {
       const raw = await loadGroundImagery(selected.lng, selected.lat);
       if (stale) return;
       if (!raw) {
-        setSatelliteStatus("failed");
+        setRawImagery(null);
+        showImagery(null);
+        setSatelliteStatus("failed", "Снимок не загрузился");
         return;
       }
-      setImagery(raw);
-      if (!enhanceSatellite) {
-        setSatelliteStatus("ready");
-        return;
-      }
-      setSatelliteStatus("enhancing");
-      try {
-        const better = await enhanceGroundImagery(raw);
-        if (stale) return;
-        setImagery(better);
-        if (better.texture !== raw.texture) raw.texture.dispose();
-        setSatelliteStatus("ready");
-      } catch {
-        if (!stale) setSatelliteStatus("ready");
-      }
+      setRawImagery(raw);
     })();
     return () => {
       stale = true;
     };
-  }, [selected, enhanceSatellite, setSatelliteStatus]);
+  }, [selected, setSatelliteStatus]);
+
+  useEffect(() => {
+    if (!selected || !rawImagery) return;
+    if (!enhanceSatellite) {
+      showImagery(rawImagery);
+      setSatelliteStatus("ready", "Спутник без улучшения");
+      return;
+    }
+    const controller = new AbortController();
+    let stale = false;
+    showImagery(rawImagery);
+    setSatelliteStatus("enhancing", "Повышаю разрешение центра…");
+    (async () => {
+      try {
+        const better = await enhanceGroundImagery(rawImagery, {
+          signal: controller.signal,
+          cacheKey: `${selected.lng.toFixed(5)},${selected.lat.toFixed(5)}`,
+        });
+        if (stale) {
+          better.detail?.texture.dispose();
+          return;
+        }
+        const px =
+          better.detail?.texture.image instanceof HTMLCanvasElement
+            ? better.detail.texture.image.width
+            : 0;
+        const cm = better.detail && px > 0 ? (better.detail.size / px) * 100 : 0;
+        showImagery(better);
+        setSatelliteStatus(
+          "ready",
+          cm > 0
+            ? `Центр площадки ${cm.toFixed(1)} см/пиксель`
+            : "Разрешение центра повышено"
+        );
+      } catch {
+        if (!stale) {
+          showImagery(rawImagery);
+          setSatelliteStatus("ready", "Спутник без улучшения");
+        }
+      }
+    })();
+    return () => {
+      stale = true;
+      controller.abort();
+    };
+  }, [selected, rawImagery, enhanceSatellite, setSatelliteStatus]);
 
   const satActive = showSatellite && imagery !== null;
 

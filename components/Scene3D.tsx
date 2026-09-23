@@ -27,6 +27,7 @@ import TimeSlider from "@/components/panels/TimeSlider";
 import MetricsPanel from "@/components/panels/MetricsPanel";
 import ZoningLegend from "@/components/panels/ZoningLegend";
 import TransformToolbar from "@/components/TransformToolbar";
+import { registerStudioCapture } from "@/lib/studio-capture";
 
 /** Keeps optional remote-asset components (HDR env map, SDF font) from
  *  blanking the whole canvas if their fetch fails, e.g. offline demos. */
@@ -284,11 +285,17 @@ function PlacedObjectNode({ object }: { object: PlacedObject }) {
         {object.kind === "block" ? (
           <BlockMesh object={object} />
         ) : object.mesh ? (
-          <CatalogMesh mesh={object.mesh} />
+          <CatalogMesh mesh={object.mesh} ghost={object.sketch} />
         ) : Mesh ? (
           <Mesh />
         ) : (
           <AIObjectMesh />
+        )}
+        {object.sketch && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.05, 0]}>
+            <ringGeometry args={[0.55, 0.72, 28]} />
+            <meshBasicMaterial color="#fbbf24" transparent opacity={0.9} />
+          </mesh>
         )}
         {isActive && (
           <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -484,8 +491,40 @@ function SandboxContent() {
         maxDistance={280}
         enableDamping
       />
+      <CaptureRig />
     </>
   );
+}
+
+function CaptureRig() {
+  const { gl, scene, camera, controls } = useThree();
+  useEffect(() => {
+    registerStudioCapture({
+      shot: () => {
+        if (!(camera instanceof THREE.PerspectiveCamera)) return null;
+        const orbit = controls as OrbitControlsImpl | null;
+        const target = orbit?.target;
+        gl.render(scene, camera);
+        let imageDataUrl = "";
+        try {
+          imageDataUrl = gl.domElement.toDataURL("image/jpeg", 0.82);
+        } catch {
+          return null;
+        }
+        if (!imageDataUrl.startsWith("data:image")) return null;
+        return {
+          imageDataUrl,
+          camera: {
+            position: [camera.position.x, camera.position.y, camera.position.z],
+            target: target ? [target.x, target.y, target.z] : [0, 0, 0],
+            fov: camera.fov,
+          },
+        };
+      },
+    });
+    return () => registerStudioCapture(null);
+  }, [gl, scene, camera, controls]);
+  return null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -541,7 +580,7 @@ export default function Scene3D() {
           position: [SANDBOX_SIZE * 0.85, SANDBOX_SIZE * 0.65, SANDBOX_SIZE * 0.85],
           fov: 45,
         }}
-        gl={{ antialias: true, logarithmicDepthBuffer: true }}
+        gl={{ antialias: true, logarithmicDepthBuffer: true, preserveDrawingBuffer: true }}
         dpr={[1, 2]}
       >
         <color attach="background" args={[sky]} />
