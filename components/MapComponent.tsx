@@ -13,6 +13,9 @@ const CARTO_DARK_TILES =
   "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
 const CARTO_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>';
+const OSM_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const OSM_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 const SAT_TILES = "/api/sat-tile?z={z}&x={x}&y={y}";
 const SAT_ATTRIBUTION =
   "Спутник: Esri / Sentinel-2 / Google";
@@ -106,6 +109,7 @@ function LeafletMap({ onFail }: { onFail: () => void }) {
   const markerRef = useRef<import("leaflet").Marker | null>(null);
   const tilesRef = useRef<import("leaflet").TileLayer | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [schematicSource, setSchematicSource] = useState<"carto" | "osm">("carto");
   const selectPoint = useStore((s) => s.selectPoint);
   const mapStyle = useStore((s) => s.mapStyle);
   const onFailRef = useRef(onFail);
@@ -184,11 +188,16 @@ function LeafletMap({ onFail }: { onFail: () => void }) {
               maxNativeZoom: 18,
               attribution: SAT_ATTRIBUTION,
             })
-          : L.tileLayer(CARTO_DARK_TILES, {
-              subdomains: "abcd",
-              maxZoom: 20,
-              attribution: CARTO_ATTRIBUTION,
-            });
+          : schematicSource === "osm"
+            ? L.tileLayer(OSM_TILES, {
+                maxZoom: 19,
+                attribution: OSM_ATTRIBUTION,
+              })
+            : L.tileLayer(CARTO_DARK_TILES, {
+                subdomains: "abcd",
+                maxZoom: 20,
+                attribution: CARTO_ATTRIBUTION,
+              });
       tiles.addTo(map);
       tilesRef.current = tiles;
 
@@ -199,7 +208,11 @@ function LeafletMap({ onFail }: { onFail: () => void }) {
           loadedOnce = true;
         });
         tiles.on("tileerror", () => {
-          if (!loadedOnce && ++tileErrors >= 4 && !cancelled) onFailRef.current();
+          if (loadedOnce || cancelled) return;
+          tileErrors += 1;
+          if (tileErrors < 4) return;
+          if (schematicSource === "carto") setSchematicSource("osm");
+          else onFailRef.current();
         });
       }
     })();
@@ -207,7 +220,7 @@ function LeafletMap({ onFail }: { onFail: () => void }) {
     return () => {
       cancelled = true;
     };
-  }, [mapStyle, mapReady]);
+  }, [mapStyle, mapReady, schematicSource]);
 
   return <div ref={containerRef} className="absolute inset-0 z-0" />;
 }

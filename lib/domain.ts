@@ -1,3 +1,5 @@
+import type { GeneratedMesh } from "./catalog";
+
 export type InitiativeStatus =
   | "new"
   | "review"
@@ -120,6 +122,29 @@ export interface Comment {
   createdAt: string;
 }
 
+/** One object frozen with the 3D sketch so the scene can be reopened. */
+export interface ScenePlacement {
+  kind: string;
+  label: string;
+  price: number;
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: [number, number, number];
+  floors?: number;
+  use?: "residential" | "commercial" | "mixed";
+  catalogId?: string;
+  mesh?: GeneratedMesh;
+  sketch?: boolean;
+  article?: string;
+  manufacturer?: string;
+  material?: string;
+  colorName?: string;
+  weightKg?: number;
+  lengthM?: number;
+  widthM?: number;
+  heightM?: number;
+}
+
 export interface Visualization {
   objectCount: number;
   cost: number;
@@ -127,6 +152,8 @@ export interface Visualization {
   createdAt: string;
   lng: number;
   lat: number;
+  /** Placed objects with pose. Missing on sketches saved before this field existed. */
+  placements?: ScenePlacement[];
 }
 
 export interface Initiative {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useRef, useEffect, useState, useMemo } from "react";
+import React, { Suspense, useRef, useEffect, useState, useMemo, useSyncExternalStore } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import {
   OrbitControls,
@@ -18,6 +18,7 @@ import * as THREE from "three";
 import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { useStore, type Building, type PlacedObject } from "@/lib/store";
 import { sunAt } from "@/lib/sun";
+import { resolvedTheme, subscribeTheme } from "@/lib/theme";
 import { SANDBOX_SIZE } from "@/lib/constants";
 import SurroundingsView from "@/components/scene/Surroundings";
 import CatalogMesh from "@/components/scene/CatalogMesh";
@@ -349,6 +350,7 @@ function SandboxContent() {
   const setActiveBuilding = useStore((s) => s.setActiveBuilding);
   const timeOfDay = useStore((s) => s.timeOfDay);
   const showSatellite = useStore((s) => s.showSatellite);
+  const lightUi = useSyncExternalStore(subscribeTheme, resolvedTheme, () => "dark") === "light";
   const satelliteStatus = useStore((s) => s.satelliteStatus);
   const satDraped =
     showSatellite &&
@@ -382,13 +384,22 @@ function SandboxContent() {
   return (
     <>
       <SafeAsset>
-        <Environment preset="city" environmentIntensity={0.12 + 0.3 * d} />
+        <Environment preset="city" environmentIntensity={lightUi ? 0.4 + 0.35 * d : 0.12 + 0.3 * d} />
       </SafeAsset>
-      {d < 0.35 && (
+      {d < 0.35 && !lightUi && (
         <Stars radius={220} depth={60} count={2500} factor={3.5} fade speed={0.4} />
       )}
-      <hemisphereLight args={["#3a5470", "#0a0f0d", 0.15 + 0.55 * d]} />
-      <ambientLight intensity={0.07 + 0.22 * d} color="#8ba0bd" />
+      <hemisphereLight
+        args={[
+          lightUi ? "#f4f7fb" : "#3a5470",
+          lightUi ? "#d5ddd4" : "#0a0f0d",
+          lightUi ? 0.55 + 0.35 * d : 0.15 + 0.55 * d,
+        ]}
+      />
+      <ambientLight
+        intensity={lightUi ? 0.38 + 0.22 * d : 0.07 + 0.22 * d}
+        color={lightUi ? "#f7f4ee" : "#8ba0bd"}
+      />
       {/* the sun */}
       <directionalLight
         position={sun.position}
@@ -429,7 +440,7 @@ function SandboxContent() {
       {!satDraped && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]}>
           <planeGeometry args={[SANDBOX_SIZE, SANDBOX_SIZE]} />
-          <meshStandardMaterial color="#052e26" transparent opacity={0.5} />
+          <meshStandardMaterial color="#1c3330" transparent opacity={0.45} />
         </mesh>
       )}
 
@@ -444,7 +455,7 @@ function SandboxContent() {
         }}
       >
         <planeGeometry args={[800, 800]} />
-        <meshStandardMaterial color="#0a1210" roughness={1} />
+        <meshStandardMaterial color={satDraped ? "#0a1210" : "#24302c"} roughness={1} />
       </mesh>
 
       {/* Real OSM surroundings when loaded; procedural blocks otherwise */}
@@ -562,15 +573,16 @@ function DataSourceBadge() {
 export default function Scene3D() {
   const selected = useStore((s) => s.selected);
   const timeOfDay = useStore((s) => s.timeOfDay);
+  const theme = useSyncExternalStore(subscribeTheme, resolvedTheme, () => "dark" as const);
   const sky = useMemo(() => {
     const dl = sunAt(timeOfDay).daylight;
+    const night = theme === "light" ? "#d5e0e8" : "#050807";
+    const day = theme === "light" ? "#f4f7f8" : "#1c3247";
     return (
       "#" +
-      new THREE.Color("#050807")
-        .lerp(new THREE.Color("#1c3247"), dl)
-        .getHexString()
+      new THREE.Color(night).lerp(new THREE.Color(day), dl).getHexString()
     );
-  }, [timeOfDay]);
+  }, [timeOfDay, theme]);
 
   return (
     <div className="relative h-full w-full">

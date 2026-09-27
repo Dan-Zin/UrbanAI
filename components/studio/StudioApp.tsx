@@ -22,6 +22,7 @@ import VisualizePanel from "@/components/panels/VisualizePanel";
 import CostEstimator from "@/components/panels/CostEstimator";
 import CompliancePanel from "@/components/panels/CompliancePanel";
 import ObjectCatalog from "@/components/ObjectCatalog";
+import ThemeToggle from "@/components/theme/ThemeToggle";
 
 const MapComponent = dynamic(() => import("@/components/MapComponent"), {
   ssr: false,
@@ -93,6 +94,7 @@ function FloatingHeader() {
             </button>
           ))}
         </div>
+        <ThemeToggle compact />
         <Button
           variant={mapHidden ? "outline" : "ghost"}
           size="sm"

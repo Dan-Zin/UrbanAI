@@ -14,6 +14,7 @@ import {
   Boxes,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ThemeToggle from "@/components/theme/ThemeToggle";
 import { useHasHydrated, usePlatform, type RoleView } from "@/lib/platform-store";
 import { LEVEL_LABELS } from "@/lib/domain";
 import { levelFromPoints } from "@/lib/gamification";
@@ -80,6 +81,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            <ThemeToggle compact />
             <div className="hidden items-center rounded-lg border border-white/10 bg-white/[0.04] p-0.5 sm:flex">
               {ROLES.map((r) => (
                 <button

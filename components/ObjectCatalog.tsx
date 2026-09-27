@@ -4,9 +4,13 @@ import { useRef, useState } from "react";
 import { ImagePlus, LoaderCircle, Sparkles, Wand2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import {
+  CATALOG_CATEGORIES,
+  filterCatalog,
+  formatDimensions,
   parseGeneratedPayload,
   payloadToCatalogItem,
   mockGenerateObject,
+  type CatalogItem,
 } from "@/lib/catalog";
 import { generateCatalogObject } from "@/services/ai";
 import { FloatingPanel } from "@/components/ui/FloatingPanel";
@@ -41,9 +45,15 @@ export default function ObjectCatalog() {
   const addFromCatalog = useStore((s) => s.addFromCatalog);
   const fileRef = useRef<HTMLInputElement>(null);
   const [prompt, setPrompt] = useState("");
+  const [query, setQuery] = useState("");
   const [photo, setPhoto] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const filtered = filterCatalog(catalog, query);
+  const groups = CATALOG_CATEGORIES.map((category) => ({
+    ...category,
+    items: filtered.filter((item) => item.category === category.id),
+  })).filter((group) => group.items.length > 0);
 
   const handlePhoto = async (file: File | undefined) => {
     if (!file) return;
@@ -88,6 +98,20 @@ export default function ObjectCatalog() {
       className="absolute right-3 top-16 z-20 flex w-72 flex-col"
       bodyClassName="flex max-h-[calc(100vh-5.5rem)] flex-col"
     >
+      <div className="border-b border-white/10 p-2.5">
+        <label htmlFor="catalog-search" className="sr-only">
+          Поиск по каталогу
+        </label>
+        <input
+          id="catalog-search"
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Поиск: название, артикул, материал, производитель"
+          className="w-full rounded-md border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs outline-none placeholder:text-muted-foreground/70 focus:border-emerald-400/40"
+        />
+      </div>
+
       <div className="space-y-2 border-b border-white/10 p-2.5">
         <textarea
           value={prompt}
@@ -142,43 +166,75 @@ export default function ObjectCatalog() {
         )}
       </div>
 
-      <div className="flex-1 space-y-1.5 overflow-y-auto p-2 scrollbar-thin">
-        {catalog.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            disabled={!selected}
-            onClick={() => addFromCatalog(item.id)}
-            title={
-              selected
-                ? item.description
-                : "Сначала выберите точку на карте"
-            }
-            className="flex w-full items-center gap-2.5 rounded-lg border border-white/5 bg-white/[0.03] px-2 py-1.5 text-left transition-colors hover:border-emerald-400/30 hover:bg-emerald-500/10 disabled:opacity-40"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={item.thumbnail}
-              alt=""
-              className="h-11 w-11 shrink-0 rounded-md object-cover"
-            />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className="truncate text-xs font-medium">{item.label}</span>
-                {item.source === "ai" && (
-                  <Sparkles className="h-3 w-3 shrink-0 text-emerald-400" />
-                )}
-              </div>
-              <div className="truncate text-[10px] text-muted-foreground">
-                {item.description}
-              </div>
-            </div>
-            <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
-              {item.builtinKind === "block" ? "6×8 м" : `$${item.price}`}
-            </span>
-          </button>
+      <div className="flex-1 space-y-3 overflow-y-auto p-2 scrollbar-thin">
+        {filtered.length === 0 && (
+          <div className="space-y-2 px-1 py-6 text-center">
+            <p className="text-xs text-muted-foreground">Ничего не найдено</p>
+            <Button type="button" size="sm" variant="outline" onClick={() => setQuery("")}>
+              Сбросить фильтр
+            </Button>
+          </div>
+        )}
+        {groups.map((group) => (
+          <section key={group.id} className="space-y-1.5">
+            <h3 className="px-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {group.label}
+            </h3>
+            {group.items.map((item) => (
+              <CatalogCard
+                key={item.id}
+                item={item}
+                disabled={!selected}
+                onPlace={() => addFromCatalog(item.id)}
+              />
+            ))}
+          </section>
         ))}
       </div>
     </FloatingPanel>
+  );
+}
+
+function CatalogCard({
+  item,
+  disabled,
+  onPlace,
+}: {
+  item: CatalogItem;
+  disabled: boolean;
+  onPlace: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onPlace}
+      title={disabled ? "Сначала выберите точку на карте" : item.description}
+      className="flex w-full items-start gap-2.5 rounded-lg border border-white/5 bg-white/[0.03] px-2 py-1.5 text-left transition-colors hover:border-emerald-400/30 hover:bg-emerald-500/10 disabled:opacity-40"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={item.thumbnail}
+        alt=""
+        className="h-11 w-11 shrink-0 rounded-md object-cover"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-xs font-medium">{item.label}</span>
+          {item.source === "ai" && <Sparkles className="h-3 w-3 shrink-0 text-emerald-400" />}
+        </div>
+        <div className="truncate text-[10px] text-muted-foreground">
+          {item.article} · {item.manufacturer}
+        </div>
+        <div className="truncate text-[10px] text-muted-foreground">
+          {formatDimensions(item.lengthM, item.widthM, item.heightM)} · {item.material}
+          {item.colorName ? ` · ${item.colorName}` : ""}
+          {item.weightKg != null ? ` · ${item.weightKg} кг` : ""}
+        </div>
+      </div>
+      <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+        {item.builtinKind === "block" ? "6×8 м" : `${item.price.toLocaleString("ru-RU")} ₽`}
+      </span>
+    </button>
   );
 }

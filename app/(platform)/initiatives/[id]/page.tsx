@@ -12,6 +12,7 @@ import { DISTRICTS } from "@/lib/seed";
 import { formatDate } from "@/lib/format";
 import { isOverdue } from "@/lib/geo";
 import { allowsNaturalView, OBJECT_TYPE_LABELS, SKETCH_DISCLAIMER } from "@/lib/views";
+import { buildSpecification } from "@/lib/catalog";
 import { viewsForInitiative } from "@/services/views";
 import ViewStatusBadge from "@/components/views/ViewStatusBadge";
 
@@ -41,6 +42,10 @@ export default function InitiativePage() {
   const overdue = isOverdue(item);
   const proposal = allowsNaturalView(item);
   const siteViews = viewsForInitiative(views, item.id);
+  const spec = item.visualization?.placements
+    ? buildSpecification(item.visualization.placements)
+    : [];
+  const specSum = spec.reduce((sum, line) => sum + line.unitPrice * line.qty, 0);
 
   return (
     <div className="mx-auto grid max-w-5xl gap-6 px-4 py-8 lg:grid-cols-[1.2fr_0.8fr]">
@@ -83,6 +88,54 @@ export default function InitiativePage() {
                 Объектов: {item.visualization.objectCount} · ориентир. смета{" "}
                 {item.visualization.cost.toLocaleString("ru-RU")} ₽
               </p>
+              {spec.length > 0 ? (
+                <div className="overflow-x-auto rounded-md border border-white/10">
+                  <table className="w-full min-w-[720px] text-left text-xs">
+                    <thead className="bg-white/[0.04] text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <tr>
+                        <th className="px-2 py-1.5 font-medium">Наименование</th>
+                        <th className="px-2 py-1.5 font-medium">Артикул</th>
+                        <th className="px-2 py-1.5 font-medium">Производитель</th>
+                        <th className="px-2 py-1.5 font-medium">Габариты (Д × Ш × В)</th>
+                        <th className="px-2 py-1.5 font-medium">Материал</th>
+                        <th className="px-2 py-1.5 font-medium">Цвет</th>
+                        <th className="px-2 py-1.5 font-medium">Вес</th>
+                        <th className="px-2 py-1.5 text-right font-medium">Кол-во</th>
+                        <th className="px-2 py-1.5 text-right font-medium">Сумма</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {spec.map((line) => (
+                        <tr key={line.key} className="border-t border-white/5">
+                          <td className="px-2 py-1.5">{line.label}</td>
+                          <td className="px-2 py-1.5">{line.article}</td>
+                          <td className="px-2 py-1.5">{line.manufacturer}</td>
+                          <td className="px-2 py-1.5 whitespace-nowrap">{line.dimensions}</td>
+                          <td className="px-2 py-1.5">{line.material}</td>
+                          <td className="px-2 py-1.5">{line.colorName}</td>
+                          <td className="px-2 py-1.5 whitespace-nowrap">{line.weightLabel}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{line.qty}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">
+                            {(line.unitPrice * line.qty).toLocaleString("ru-RU")} ₽
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="border-t border-white/10 font-medium">
+                        <td className="px-2 py-1.5" colSpan={8}>
+                          Итого
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">
+                          {specSum.toLocaleString("ru-RU")} ₽
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Спецификация появится после сохранения сцены: откройте студию и прикрепите эскиз ещё раз.
+                </p>
+              )}
               <Link
                 href={`/studio?lng=${item.lng}&lat=${item.lat}&initiative=${item.id}`}
               >

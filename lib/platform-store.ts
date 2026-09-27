@@ -21,7 +21,15 @@ import {
 import type { SiteView } from "./views";
 import { classifyIntent } from "./views";
 import { upsertView } from "@/services/views";
-import { DISTRICTS, USERS, INITIATIVES, COMMUNITIES, MEETINGS, DEMO_USER_ID } from "./seed";
+import {
+  DISTRICTS,
+  USERS,
+  INITIATIVES,
+  COMMUNITIES,
+  MEETINGS,
+  DEMO_USER_ID,
+  EMBANKMENT_PLACEMENTS,
+} from "./seed";
 import { addDays, findDistrict, reverseGeocode, routeAssignee } from "./geo";
 import { unlockedAchievements } from "./gamification";
 import { mockAssist, similarInitiatives } from "./ai-assist";
@@ -227,7 +235,33 @@ export const usePlatform = create<PlatformState>()(
       },
       resetDemo: () => set(initial()),
     }),
-    { name: "tochka-rosta-demo-v2" }
+    {
+      name: "tochka-rosta-demo-v2",
+      version: 1,
+      migrate: (persisted, version) => {
+        if (version >= 1) return persisted as never;
+        const state = persisted as {
+          initiatives?: { id: string; visualization?: { placements?: unknown[] } }[];
+        };
+        if (!state?.initiatives) return persisted as never;
+        return {
+          ...state,
+          initiatives: state.initiatives.map((item) => {
+            if (item.id !== "in-03" || !item.visualization || item.visualization.placements?.length) {
+              return item;
+            }
+            return {
+              ...item,
+              visualization: {
+                ...item.visualization,
+                objectCount: EMBANKMENT_PLACEMENTS.length,
+                placements: EMBANKMENT_PLACEMENTS,
+              },
+            };
+          }),
+        } as never;
+      },
+    }
   )
 );
 

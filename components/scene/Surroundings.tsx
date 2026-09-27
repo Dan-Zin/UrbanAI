@@ -1073,39 +1073,63 @@ function ribbonGeometry(path: [number, number][], width: number) {
   const normals = new Float32Array((positions.length / 3) * 3);
   for (let i = 0; i < normals.length; i += 3) normals[i + 1] = 1;
   geo.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
+  geo.computeBoundingSphere();
   return geo;
 }
 
-function RoadRibbon({ road }: { road: OsmRoad }) {
+function shiftPath(path: [number, number][], offset: number): [number, number][] {
+  const n = path.length;
+  return path.map(([x, z], i) => {
+    const [px, pz] = path[Math.max(0, i - 1)];
+    const [nx, nz] = path[Math.min(n - 1, i + 1)];
+    let dx = nx - px;
+    let dz = nz - pz;
+    const len = Math.hypot(dx, dz) || 1;
+    dx /= len;
+    dz /= len;
+    return [x - dz * offset, z + dx * offset];
+  });
+}
+
+function RoadRibbon({ road, schematic }: { road: OsmRoad; schematic: boolean }) {
   const isFoot = /footway|path|steps|cycleway|pedestrian/.test(road.kind);
-  const { geometry, sidewalkGeometry } = useMemo(
-    () => ({
-      geometry: ribbonGeometry(road.path, road.width),
-      // carriageways get a slightly lighter sidewalk band on both sides
-      sidewalkGeometry: isFoot ? null : ribbonGeometry(road.path, road.width + 3),
-    }),
-    [road, isFoot]
-  );
+  const layers = useMemo(() => {
+    const edge = Math.max(0.35, road.width / 2 - 0.18);
+    return {
+      sidewalk: isFoot ? null : ribbonGeometry(road.path, road.width + 2.6),
+      asphalt: ribbonGeometry(road.path, isFoot ? road.width : Math.max(1.6, road.width - 0.15)),
+      edgeL: isFoot ? null : ribbonGeometry(shiftPath(road.path, edge), 0.12),
+      edgeR: isFoot ? null : ribbonGeometry(shiftPath(road.path, -edge), 0.12),
+      center:
+        !isFoot && road.width >= 5 ? ribbonGeometry(road.path, road.width >= 7 ? 0.14 : 0.1) : null,
+    };
+  }, [road, isFoot]);
+  const asphalt = isFoot ? "#f0e2cc" : schematic ? "#8b97a3" : "#6d7884";
+  const sidewalk = schematic ? "#f4f6f2" : "#d5dbd6";
+  const opacity = schematic ? 1 : 0.92;
   return (
     <group>
-      {sidewalkGeometry && (
-        <mesh geometry={sidewalkGeometry} position={[0, 0.015, 0]} receiveShadow>
-          <meshStandardMaterial
-            color="#272d2b"
-            roughness={0.98}
-            polygonOffset
-            polygonOffsetFactor={-1}
-          />
+      {layers.sidewalk && (
+        <mesh geometry={layers.sidewalk} position={[0, 0.12, 0]} renderOrder={2}>
+          <meshBasicMaterial color={sidewalk} transparent={!schematic} opacity={opacity} />
         </mesh>
       )}
-      <mesh geometry={geometry} position={[0, isFoot ? 0.03 : 0.022, 0]} receiveShadow>
-        <meshStandardMaterial
-          color={isFoot ? "#2f3532" : "#191d1d"}
-          roughness={0.92}
-          polygonOffset
-          polygonOffsetFactor={-2}
-        />
+      <mesh geometry={layers.asphalt} position={[0, isFoot ? 0.16 : 0.15, 0]} renderOrder={3}>
+        <meshBasicMaterial color={asphalt} transparent={!schematic} opacity={opacity} />
       </mesh>
+      {[layers.edgeL, layers.edgeR, layers.center].map(
+        (geometry, index) =>
+          geometry && (
+            <mesh
+              key={index}
+              geometry={geometry}
+              position={[0, 0.19, 0]}
+              renderOrder={4}
+            >
+              <meshBasicMaterial color={index === 2 ? "#ffe56a" : "#ffffff"} />
+            </mesh>
+          )
+      )}
     </group>
   );
 }
@@ -1597,8 +1621,9 @@ export default function SurroundingsView({ data }: { data: Surroundings }) {
         data.areas
           .filter((a) => a.zoning)
           .map((a) => <ZonePatch key={`z-${a.id}`} area={a} />)}
-      {!satActive &&
-        data.roads.map((r) => <RoadRibbon key={`r-${r.id}`} road={r} />)}
+      {data.roads.map((r) => (
+        <RoadRibbon key={`r-${r.id}`} road={r} schematic={!satActive} />
+      ))}
       {data.rails.map((r) => (
         <RailwayLine key={`rw-${r.id}`} rail={r} />
       ))}

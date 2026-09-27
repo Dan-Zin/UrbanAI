@@ -8,6 +8,7 @@ import { usePlatform } from "@/lib/platform-store";
 import { LEVEL_LABELS } from "@/lib/domain";
 import { ACHIEVEMENTS, levelFromPoints, levelProgress } from "@/lib/gamification";
 import { DISTRICTS } from "@/lib/seed";
+import ThemeToggle from "@/components/theme/ThemeToggle";
 
 export default function ProfilePage() {
   const user = usePlatform((s) => s.users.find((u) => u.id === s.currentUserId));
@@ -34,6 +35,18 @@ export default function ProfilePage() {
           </p>
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Тема</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Светлая, тёмная или как в системе. Настройка сохраняется в этом браузере.
+          </p>
+          <ThemeToggle />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="p-4">

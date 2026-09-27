@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useStore } from "@/lib/store";
+import { useStore, type PlacedObject } from "@/lib/store";
 import { useHasHydrated, usePlatform } from "@/lib/platform-store";
 import { Button } from "@/components/ui/button";
-import { DEFAULT_MAF_CATALOG } from "@/lib/catalog";
+import { DEFAULT_MAF_CATALOG, KIND_CATALOG_ID, type CatalogItem } from "@/lib/catalog";
+import type { ScenePlacement } from "@/lib/domain";
 import { takeStudioShot } from "@/lib/studio-capture";
 import {
   allowsNaturalView,
@@ -17,6 +18,33 @@ import {
 } from "@/lib/views";
 import { viewId } from "@/services/views";
 import { fitDataUrl } from "@/services/inpaint";
+
+function toPlacement(object: PlacedObject, catalog: CatalogItem[]): ScenePlacement {
+  const catalogId = object.catalogId || KIND_CATALOG_ID[object.kind];
+  const item = catalogId ? catalog.find((entry) => entry.id === catalogId) : undefined;
+  const floors = object.kind === "block" ? object.floors : undefined;
+  return {
+    kind: object.kind,
+    label: object.label,
+    price: object.price,
+    position: [object.position[0], object.position[1], object.position[2]],
+    rotation: [object.rotation[0], object.rotation[1], object.rotation[2]],
+    scale: [object.scale[0], object.scale[1], object.scale[2]],
+    floors: object.floors,
+    use: object.use,
+    catalogId,
+    mesh: object.mesh,
+    sketch: object.sketch,
+    article: item?.article,
+    manufacturer: item?.manufacturer,
+    material: item?.material,
+    colorName: item?.colorName,
+    weightKg: item?.weightKg,
+    lengthM: item?.lengthM,
+    widthM: item?.widthM,
+    heightM: floors != null ? floors * 3.2 : item?.heightM,
+  };
+}
 
 function catalogFor(object: ViewObject) {
   const id =
@@ -42,9 +70,11 @@ export default function StudioBridge() {
   const selectPoint = useStore((s) => s.selectPoint);
   const selected = useStore((s) => s.selected);
   const objects = useStore((s) => s.objects);
-  const totalCost = useStore((s) => s.totalCost);
   const addSketchObject = useStore((s) => s.addSketchObject);
   const clearSketches = useStore((s) => s.clearSketches);
+  const loadPlacements = useStore((s) => s.loadPlacements);
+  const catalog = useStore((s) => s.catalog);
+  const restoredKey = useRef<string | null>(null);
   const attachVisualization = usePlatform((s) => s.attachVisualization);
   const createInitiative = usePlatform((s) => s.createInitiative);
   const saveView = usePlatform((s) => s.saveView);
@@ -65,6 +95,14 @@ export default function StudioBridge() {
       selectPoint(lng, lat);
     }
   }, [lat, lng, selectPoint]);
+
+  useEffect(() => {
+    if (!hydrated || !selected || !initiative?.visualization?.placements?.length) return;
+    const key = `${initiative.id}:${initiative.visualization.createdAt}`;
+    if (restoredKey.current === key) return;
+    restoredKey.current = key;
+    loadPlacements(initiative.visualization.placements);
+  }, [hydrated, selected, initiative, loadPlacements]);
 
   useEffect(() => {
     if (!hydrated || !viewParam || !selected) return;
@@ -97,13 +135,16 @@ export default function StudioBridge() {
 
   const attach = () => {
     if (!selected) return;
+    const placed = objects.filter((object) => !object.sketch);
+    const placements = placed.map((object) => toPlacement(object, catalog));
     const viz = {
-      objectCount: objects.length,
-      cost: totalCost(),
-      note: objects.map((o) => o.label).join(", ") || "Пустая площадка",
+      objectCount: placements.length,
+      cost: placed.reduce((sum, object) => sum + object.price, 0),
+      note: placed.map((o) => o.label).join(", ") || "Пустая площадка",
       createdAt: new Date().toISOString(),
       lng: selected.lng,
       lat: selected.lat,
+      placements,
     };
     if (initiativeId) {
       attachVisualization(initiativeId, viz);

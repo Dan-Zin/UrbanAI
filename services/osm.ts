@@ -5,18 +5,20 @@
  * clicked coordinate and converts them into local meters (sandbox space,
  * X = east, Z = south, origin at the clicked point).
  *
- * Endpoint order matters: the VK/mail.ru mirror is the most reliable from
- * Russian networks; the others are fallbacks.
+ * Overpass rejects clients that send no User-Agent (HTTP 406). Node's fetch
+ * sends none, so the public mirrors must get an explicit one. The German
+ * endpoints answer in a few seconds once that header is set; maps.mail.ru is
+ * the fallback when those are blocked.
  */
 
 import { OSM_RADIUS_M } from "@/lib/constants";
 
+const OVERPASS_USER_AGENT = "TochkaRosta/1.0 (Taganrog urban studio)";
+
 const OVERPASS_ENDPOINTS = [
-  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
-  "https://lz4.overpass-api.de/api/interpreter",
   "https://overpass-api.de/api/interpreter",
-  "https://overpass.openstreetmap.fr/api/interpreter",
-  "https://overpass.osm.ch/api/interpreter",
+  "https://lz4.overpass-api.de/api/interpreter",
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ];
 
 /** OSM building:colour is often a Russian word THREE.js cannot parse. */
@@ -240,6 +242,7 @@ async function postOverpass(
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         Accept: "application/json",
+        "User-Agent": OVERPASS_USER_AGENT,
       },
       body: "data=" + encodeURIComponent(query),
       signal: controller.signal,
@@ -271,8 +274,8 @@ export async function querySurroundings(
   radius = OSM_RADIUS_M
 ): Promise<Surroundings | null> {
   const bbox = bboxOf(lat, lng, radius);
-  const buildingsQ = `[out:json][timeout:15];(way["building"](${bbox}););out geom;`;
-  const contextQ = `[out:json][timeout:12];(
+  const buildingsQ = `[out:json][timeout:25];(way["building"](${bbox}););out geom;`;
+  const contextQ = `[out:json][timeout:25];(
   way["highway"](${bbox});
   way["railway"~"^(rail|tram|light_rail|narrow_gauge)$"](${bbox});
   node["natural"="tree"](${bbox});
@@ -281,20 +284,34 @@ export async function querySurroundings(
   way["natural"="water"](${bbox});
 );out geom;`;
 
-  const buildingEls = await firstOverpass(buildingsQ, 14000);
-  const contextEls = await firstOverpass(contextQ, 12000);
+  // Buildings and streets are independent queries. Run them together so a
+  // slow mirror does not eat the whole budget before roads are requested.
+  const [buildingEls, contextEls] = await Promise.all([
+    firstOverpass(buildingsQ, 25000),
+    firstOverpass(contextQ, 25000),
+  ]);
 
   let buildings = buildingEls;
   if (!buildings) {
     const small = bboxOf(lat, lng, Math.min(100, radius));
     buildings = await firstOverpass(
-      `[out:json][timeout:12];(way["building"](${small}););out geom;`,
-      12000
+      `[out:json][timeout:20];(way["building"](${small}););out geom;`,
+      22000
     );
   }
 
   if (!buildings && !contextEls) return null;
-  return parseElements([...(buildings ?? []), ...(contextEls ?? [])], lng, lat);
+  const parsed = parseElements([...(buildings ?? []), ...(contextEls ?? [])], lng, lat);
+  if (parsed.roads.length === 0) {
+    const highwayEls = await firstOverpass(
+      `[out:json][timeout:20];(way["highway"](${bbox}););out geom;`,
+      22000
+    );
+    if (highwayEls) {
+      parsed.roads = parseElements(highwayEls, lng, lat).roads;
+    }
+  }
+  return parsed;
 }
 
 export async function fetchSurroundings(

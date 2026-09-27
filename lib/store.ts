@@ -1,7 +1,13 @@
 import { create } from "zustand";
 import { seededRandom } from "./utils";
 import { SANDBOX_SIZE } from "./constants";
-import { BUILTIN_CATALOG, type CatalogItem, type GeneratedMesh } from "./catalog";
+import {
+  BUILTIN_CATALOG,
+  KIND_CATALOG_ID,
+  type CatalogItem,
+  type GeneratedMesh,
+} from "./catalog";
+import type { ScenePlacement } from "./domain";
 import { fetchSurroundings, type Surroundings } from "@/services/osm";
 import type { SceneAnalysis } from "@/services/ai";
 
@@ -147,7 +153,8 @@ interface UrbanState {
   scenario: ScenarioId;
   setScenario: (s: ScenarioId) => void;
   activeObjectId: string | null;
-  addObject: (kind: Exclude<ObjectKind, "ai" | "catalog">) => void;
+  addObject: (kind: Exclude<ObjectKind, "ai" | "catalog">, catalogId?: string) => void;
+  loadPlacements: (placements: ScenePlacement[]) => void;
   addAIObject: (label: string, price: number, mesh?: GeneratedMesh) => void;
   addFromCatalog: (catalogId: string) => void;
   addSketchObject: (object: Omit<PlacedObject, "id">) => void;
@@ -272,7 +279,7 @@ export const useStore = create<UrbanState>((set, get) => ({
       activeObjectId: null,
     })),
   activeObjectId: null,
-  addObject: (kind) => {
+  addObject: (kind, catalogId) => {
     const { label, price } = CATALOG[kind];
     const id = `obj-${++objectCounter}`;
     set((s) => {
@@ -284,6 +291,7 @@ export const useStore = create<UrbanState>((set, get) => ({
         position: [jitter(), 0, jitter()],
         rotation: [0, 0, 0],
         scale: [1, 1, 1],
+        catalogId: catalogId ?? KIND_CATALOG_ID[kind],
       };
       if (kind === "block") {
         obj.floors = 5;
@@ -333,6 +341,39 @@ export const useStore = create<UrbanState>((set, get) => ({
       };
     });
   },
+  loadPlacements: (placements) => {
+    const catalog = get().catalog;
+    const objects: PlacedObject[] = placements.map((placement) => {
+      const item = placement.catalogId
+        ? catalog.find((entry) => entry.id === placement.catalogId)
+        : undefined;
+      const procedural = Boolean(item?.builtinKind) && !placement.mesh;
+      const mesh =
+        placement.mesh ??
+        (!procedural && (placement.kind === "catalog" || placement.kind === "ai")
+          ? item?.mesh
+          : undefined);
+      return {
+        id: `obj-${++objectCounter}`,
+        kind: (procedural ? item?.builtinKind : placement.kind) as ObjectKind,
+        label: placement.label,
+        price: placement.price,
+        position: placement.position,
+        rotation: placement.rotation ?? [0, 0, 0],
+        scale: placement.scale ?? [1, 1, 1],
+        floors: placement.floors,
+        use: placement.use,
+        catalogId: placement.catalogId,
+        mesh,
+        sketch: placement.sketch,
+      };
+    });
+    set((s) => ({
+      objects,
+      scenarios: { ...s.scenarios, [s.scenario]: objects },
+      activeObjectId: null,
+    }));
+  },
   clearSketches: () =>
     set((s) => {
       const objects = s.objects.filter((o) => !o.sketch);
@@ -342,7 +383,7 @@ export const useStore = create<UrbanState>((set, get) => ({
     const item = get().catalog.find((c) => c.id === catalogId);
     if (!item) return;
     if (item.builtinKind) {
-      get().addObject(item.builtinKind);
+      get().addObject(item.builtinKind, item.id);
       return;
     }
     const id = `obj-${++objectCounter}`;

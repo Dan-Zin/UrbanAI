@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import "mapbox-gl/dist/mapbox-gl.css";
 import "leaflet/dist/leaflet.css";
+import { THEME_BOOT } from "@/lib/theme";
 
 const inter = Inter({ subsets: ["latin", "cyrillic"] });
 
@@ -16,8 +17,11 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="ru" className="dark">
-      <body className={inter.className}>{children}</body>
+    <html lang="ru" className="dark" suppressHydrationWarning>
+      <body className={inter.className}>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+        {children}
+      </body>
     </html>
   );
 }
